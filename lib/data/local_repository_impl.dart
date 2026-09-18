@@ -33,6 +33,7 @@ import 'journal_fields.dart';
 import 'local_repository.dart';
 import 'series_codec.dart';
 import '../gps/route_models.dart';
+import '../fitness/temperature_calibration.dart';
 import '../gps/route_math.dart' as rmath;
 
 class LocalRepositoryImpl extends LocalRepository {
@@ -720,6 +721,8 @@ class LocalRepositoryImpl extends LocalRepository {
   /// a `need_baseline:have=H,need=3` note so the card shows "Need N more nights"
   /// instead of a bare "—" (skin-temp z needs ≥3 nights of ADC baseline).
   Future<Map<String, dynamic>> _skinTempBlock(Map<String, dynamic> b) async {
+    final nights = (await LocalDb.metricSeries('skin_temp_adc')).length;
+    final phase = TemperatureCalibration.phaseFor(nights).name;
     final z = _scalar(b, 'skin_temp_z');
     if (z != null) {
       // The ENVELOPE, not a bare `{'value': z}`. `Metric.isEmpty` is
@@ -735,10 +738,20 @@ class LocalRepositoryImpl extends LocalRepository {
         'tier': (env?['tier'] as String?) ?? ana.Tier.relative,
         'inputs_used': env?['inputs_used'] ?? const ['skin_temp_raw'],
         'note': ?env?['note'],
+        'calibration_phase': phase,
+        'calibration_nights': nights,
+        'calibration_nights_remaining':
+            TemperatureCalibration.nightsRemaining(nights),
       };
     }
-    final have = (await LocalDb.metricSeries('skin_temp_adc')).length;
-    return {'value': null, 'note': 'need_baseline:have=$have,need=3'};
+    return {
+      'value': null,
+      'note': 'need_baseline:have=$nights,need=3',
+      'calibration_phase': phase,
+      'calibration_nights': nights,
+      'calibration_nights_remaining':
+          TemperatureCalibration.nightsRemaining(nights),
+    };
   }
 
   // ── day drill-downs ─────────────────────────────────────────────────────────

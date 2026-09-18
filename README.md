@@ -69,6 +69,42 @@ person's physiology in the test data otherwise.*
 
 ---
 
+## Windows development
+
+The iOS app still requires macOS/Xcode for signing and device deployment, but
+Windows is enough for Dart logic, the web/desktop prototype, and unit tests. In
+this checkout use the local launcher, which keeps Flutter's writable cache in
+the project:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\flutter-local.ps1 pub get
+powershell -ExecutionPolicy Bypass -File .\flutter-local.ps1 test --no-pub
+# Optional local UI run (downloads the Web/Windows engine on first use)
+powershell -ExecutionPolicy Bypass -File .\flutter-local.ps1 run -d chrome
+```
+
+The launcher assumes the Flutter SDK is installed at `C:\flutter-sdk`. Change
+the `$sdk` value in `flutter-local.ps1` if it is elsewhere.
+
+The first `run` or desktop build may need network access to fetch Flutter's
+platform engine. Windows desktop also needs Visual Studio's **Desktop
+development with C++** workload; without it, unit tests still work but a native
+desktop build cannot link.
+
+### Fork handoff
+
+Keep the OpenStrap repository as `upstream` and use your own GitHub fork as
+`origin` when you are ready to publish this work. The safe sequence is:
+
+```powershell
+git remote rename origin upstream
+git remote add origin https://github.com/<your-account>/edge.git
+git push -u origin codex/simple-today
+```
+
+Those commands intentionally require your own GitHub authentication and are not
+run by the Windows test launcher.
+
 ## What made me build this app 
 
 My subscription lapsed and a perfectly good sensor turned into a bracelet. The hardware

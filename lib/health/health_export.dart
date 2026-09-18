@@ -862,7 +862,7 @@ class HealthExporter {
         return done;
       };
 
-      return exportPriorityOrBulk();
+      return await exportPriorityOrBulk();
     } catch (e) {
       debugPrint('[health] exportAll: $e');
       return 0;

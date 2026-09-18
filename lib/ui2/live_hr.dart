@@ -15,7 +15,8 @@
 //     screen closed. The buffer lives on [AppState] now and this is a pure
 //     renderer.
 //   · The trace is READINGS, not seconds, and says so. Samples arrive when the
-//     band delivers them, so calling it "the last 90 seconds" would be a claim
+//     band delivers them, so calling it "the last 15 minutes" is only valid
+//     when the nominal one-Hz stream has filled that window.
 //     about spacing nothing here guarantees.
 //   · Absence states its reason and never a number. `AppState.liveHr` returns
 //     null past [AppState.liveHrMaxAge], so an unworn band, a dropped link and
@@ -35,6 +36,7 @@ import '../state/app_state.dart';
 import 'profile/devices.dart'
     show HealthSource, deviceIdOf, liveSources, rankSources;
 import 'ui2.dart';
+import 'live_hr_window.dart';
 
 /// The tap's cycling rule: the next streaming device after [current] in
 /// [ranked]'s order, wrapping — a two-device tap is a toggle, a three-device
@@ -91,13 +93,16 @@ class LiveHrCard extends StatelessWidget {
     }
 
     // A REVISION, not the length. Length is pinned at the cap once the buffer
-    // is full, so watching it drew the first 90 readings and then froze.
+    // is full, so watching it would draw the first readings and then freeze.
     final List<int> trace;
+    List<({int at, int hr})>? timestamped;
     if (_preview) {
       trace = _trace ?? const [];
     } else {
       c.select<AppState, int>((a) => a.liveHrTraceRev);
-      trace = c.read<AppState>().liveHrTrace();
+      final app = c.read<AppState>();
+      timestamped = app.liveHrTraceSamples();
+      trace = [for (final sample in timestamped) sample.hr];
     }
 
     return Surface(
@@ -146,27 +151,8 @@ class LiveHrCard extends StatelessWidget {
           else
             const Pill('LIVE', C.red, icon: LucideIcons.radio),
         ]),
-        if (trace.length > 2) ...[
-          const SizedBox(height: S.x3),
-          SizedBox(
-            height: 56,
-            child: CustomPaint(
-              painter: LineChart(
-                [for (final v in trace) v.toDouble()],
-                C.red,
-                fill: false,
-              ),
-              size: Size.infinite,
-            ),
-          ),
-          const SizedBox(height: S.x2),
-          Text(
-            'The last ${trace.length} readings — ${trace.reduce(math.min)}'
-            '–${trace.reduce(math.max)} bpm. Not stored; this is '
-            'the live stream, not a record of your day.',
-            style: F.over.copyWith(color: p.ink3),
-          ),
-        ],
+        if (trace.length > 2)
+          _LiveRangeChart(trace: trace, timestamped: timestamped),
       ]),
     );
   }
@@ -190,5 +176,76 @@ class LiveHrCard extends StatelessWidget {
               );
     return StatusCard('No live reading', why,
         fix: fix, icon: LucideIcons.heartOff);
+  }
+}
+
+class _LiveRangeChart extends StatefulWidget {
+  const _LiveRangeChart({required this.trace, this.timestamped});
+  final List<int> trace;
+  final List<({int at, int hr})>? timestamped;
+
+  @override
+  State<_LiveRangeChart> createState() => _LiveRangeChartState();
+}
+
+class _LiveRangeChartState extends State<_LiveRangeChart> {
+  int _rangeMinutes = 15;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = P.of(context);
+    final cap = switch (_rangeMinutes) {
+      15 => 900,
+      60 => 3600,
+      _ => 86400,
+    };
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final visible = widget.timestamped == null
+        ? (widget.trace.length <= cap
+            ? widget.trace
+            : widget.trace.sublist(widget.trace.length - cap))
+        : selectLiveHrWindow(widget.timestamped!,
+            now: DateTime.fromMillisecondsSinceEpoch(now),
+            window: Duration(minutes: _rangeMinutes));
+    final label = _rangeMinutes == 1440
+        ? '24 hours'
+        : _rangeMinutes == 60
+        ? 'hour'
+        : '15 minutes';
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const SizedBox(height: S.x3),
+      SegmentedButton<int>(
+        segments: const [
+          ButtonSegment(value: 15, label: Text('15m')),
+          ButtonSegment(value: 60, label: Text('1h')),
+          ButtonSegment(value: 1440, label: Text('1d')),
+        ],
+        selected: {_rangeMinutes},
+        onSelectionChanged: (s) => setState(() => _rangeMinutes = s.first),
+      ),
+      const SizedBox(height: S.x2),
+      SizedBox(
+        height: 56,
+        child: CustomPaint(
+          painter: LineChart(
+            [for (final v in visible) v.toDouble()],
+            C.red,
+            fill: false,
+          ),
+          size: Size.infinite,
+        ),
+      ),
+      const SizedBox(height: S.x2),
+      Text(
+        'Showing ${visible.length} live readings for the last $label '
+        '(${visible.length < cap ? 'available foreground samples' : 'buffer full'}). '
+        'Range data is not stored as a day history.',
+        style: F.over.copyWith(color: p.ink3),
+      ),
+      Text(
+        '${visible.reduce(math.min)}–${visible.reduce(math.max)} bpm',
+        style: F.over.copyWith(color: p.ink3),
+      ),
+    ]);
   }
 }

@@ -43,11 +43,14 @@ import '../../theme/theme_switcher.dart' show themedRoute;
 import '../activity/day_strain.dart' show DayStrainDetail;
 import '../profile/profile.dart';
 import '../ui2.dart';
+import '../strap_status.dart';
 import 'coach.dart';
 import 'day_timeline.dart' show DayTimelineScreen;
 import 'metric_detail.dart';
 import 'readiness_detail.dart';
 import 'sleep_detail.dart';
+import 'rockport_test.dart';
+import 'sync_details.dart';
 
 // ═══════════════════ shared plumbing ═══════════════════
 
@@ -1056,6 +1059,7 @@ class HomeData {
   final Metric readiness;
   final List<Map<String, dynamic>> drivers;
   final Metric sleepMin, rhr, steps, calories, caloriesTotal;
+  final Metric stress;
 
   /// The day's 0–21 strain, read from the same `getToday` bundle the Workout
   /// tab reads. Nothing on this screen computes it.
@@ -1104,6 +1108,7 @@ class HomeData {
     this.steps = Metric.empty,
     this.calories = Metric.empty,
     this.caloriesTotal = Metric.empty,
+    this.stress = Metric.empty,
     this.strain = Metric.empty,
     this.stepGoal = kDefaultStepGoal,
     this.sleepNeedMin = Metric.empty,
@@ -1129,6 +1134,7 @@ class HomeData {
         steps: steps,
         calories: calories,
         caloriesTotal: caloriesTotal,
+        stress: stress,
         strain: strain,
         stepGoal: stepGoal,
         sleepNeedMin: sleepNeedMin,
@@ -1190,6 +1196,7 @@ class HomeData {
       steps: metricOf(d('steps')),
       calories: metricOf(d('calories')),
       caloriesTotal: metricOf(d('calories_total')),
+      stress: metricOf(today['stress']),
       stepGoal: (today['step_goal'] as num?)?.toInt() ?? kDefaultStepGoal,
       // sleep_coach.need is the COMPUTED need. `sleep.need_min` is a hardcoded
       // 480 and must never be shown as "your sleep need".
@@ -1357,6 +1364,42 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
       );
     }
     return null;
+  }
+
+  /// A compact strap-health disclosure belongs on Today: battery and link
+  /// state are actionable context for every metric, not a detail hidden under
+  /// Profile. It deliberately uses only values the BLE engine actually knows.
+  Widget? _strapStateCard(BuildContext c) {
+    final app = c.watch<AppState>();
+    if (!app.isPaired) return null;
+    final device = app.device;
+    final battery = device.batteryPct?.round();
+    final connection = device.connection;
+    final wrist = device.wristOn;
+    final charging = device.charging == true;
+    final status = StrapStatus.from(
+      connection: connection,
+      battery: battery,
+      charging: charging,
+    );
+    final low = status.kind == StrapStatusKind.lowBattery;
+    final title = status.title;
+    final details = <String>[
+      if (battery != null) '$battery% battery',
+      if (charging) 'on charger',
+      if (wrist == true) 'on wrist' else if (wrist == false) 'off wrist',
+      if (connection != 'connected')
+        'recordings stay on the band until it reconnects',
+    ];
+    return StatusCard(
+      title,
+      details.isEmpty
+          ? 'No recent strap status is available.'
+          : details.join(' · '),
+      fix: 'View sync details',
+      icon: charging || low ? LucideIcons.batteryCharging : LucideIcons.watch,
+      onFix: () => go(c, const SyncDetailsScreen()),
+    );
   }
 
   Widget _bareStatusCard(BuildContext c, HomeData d, AppLocalizations? l) {
@@ -1584,6 +1627,14 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
         // Right under the rings, above everything else — the one spot on
         // this screen nobody scrolls past without seeing.
         const CommunityNudge(),
+        if (_strapStateCard(c) case final strap?) ...[
+          strap,
+          const SizedBox(height: S.x3),
+        ],
+        // Current BPM is actionable context for the three decision rings and
+        // comes from the live stream, never from a stale daily aggregate.
+        const LiveHrCard(),
+        const SizedBox(height: S.x3),
 
         // ── the rollup was withheld, not absent ──
         if (stale != null) ...[const SizedBox(height: S.x3), stale],
@@ -1606,6 +1657,15 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
             l?.homeBreakdownTitle ?? 'Breakdown of your day',
             l?.homeBreakdownSubtitle ?? 'Hour by hour',
             () => go(c, const DayTimelineScreen())),
+        detailLinkRow(c, LucideIcons.moon, 'Sleep stages',
+            'Open the estimated hypnogram and sleep details',
+            () => go(c, const SleepDetail())),
+        detailLinkRow(c, LucideIcons.refreshCw, 'Sync details',
+            'See connection, storage and processing status',
+            () => go(c, const SyncDetailsScreen())),
+        detailLinkRow(c, LucideIcons.footprints, 'WHOOP fitness test',
+            'Estimate VO₂ max from a one-mile walk',
+            () => go(c, const RockportTestScreen())),
       ],
     ]));
   }
@@ -1712,7 +1772,24 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
           why: d.sleepMin.isEmpty
               ? (l?.homeNoRestingHrWhy ??
                   'Resting heart rate is read from sleep, and no sleep was recorded.')
-              : ''),
+          : ''),
+    );
+    add(
+      d.stress,
+      () => SignalCard(
+        LucideIcons.brain,
+        C.purple,
+        'Stress',
+        '${d.stress.value!.round()}',
+        unit: '/100',
+        sub: 'Resting autonomic estimate',
+        onTap: () => go(c, const MetricDetail('stress')),
+      ),
+      () => StatusCard.forMetric(
+        'No stress estimate',
+        d.stress,
+        why: 'Needs a clean resting beat-to-beat window.',
+      ),
     );
     // Steps keeps its tile whether or not a counter reported. Zero steps is a
     // real reading — an unmoved counter — and it renders as 0, not as absence.
@@ -1729,7 +1806,9 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
       // count, the phone's, or both, and the card has to say which. The split
       // behind a mixed day is on Nerd stats, one tap down.
       sub: d.steps.value == null
-          ? (l?.homeStepsNotRecorded ?? 'NOT RECORDED')
+          ? (c.read<AppState>().phoneStepsEnabled
+              ? 'PHONE PEDOMETER ENABLED · WAITING FOR DATA'
+              : 'NOT RECORDED · ENABLE PHONE PEDOMETER IN PROFILE')
           : [
               if (d.stepGoal > 0)
                 l?.homeStepsPercentGoal(

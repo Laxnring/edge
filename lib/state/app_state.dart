@@ -678,6 +678,7 @@ class AppState extends ChangeNotifier {
     phoneStepsEnabled = false;
     phoneStepsLastSyncedDays = null;
     phoneStepsLastTotal = null;
+    phoneStepsLastError = null;
     phoneStepsToday = 0;
     _phoneStepsDay = null;
     // Stop the sensor BEFORE dropping the rows: on Android the counter keeps
@@ -701,6 +702,10 @@ class AppState extends ChangeNotifier {
   /// comes back empty, and no step count ever appears with nothing to act on.
   int? phoneStepsLastSyncedDays;
   int? phoneStepsLastTotal;
+  /// Last phone-pedometer failure, if any. A zero-row result is not itself an
+  /// error (it can be a genuinely quiet day), so keep the failure reason
+  /// separate for the diagnostics screen.
+  String? phoneStepsLastError;
 
   /// Steps the PHONE has banked for today, mirroring `liveStepsForDay`'s own
   /// source rule (phone wins only when it actually has data).
@@ -745,11 +750,14 @@ class AppState extends ChangeNotifier {
       final r = await _phonePedometer.syncRecent(days: days);
       phoneStepsLastSyncedDays = r.daysRead;
       phoneStepsLastTotal = r.totalSteps;
+      phoneStepsLastError = null;
       await _refreshPhoneStepsToday();
       notifyListeners();
       return r.daysRead;
     } catch (e) {
+      phoneStepsLastError = e.toString();
       debugPrint('[phone_steps] sync: $e');
+      notifyListeners();
       return 0;
     }
   }
@@ -3462,7 +3470,9 @@ class AppState extends ChangeNotifier {
   /// violation (see the ungated-Duration rule) and a trace that resets every
   /// time the screen is opened. The engine already pushes state at about 1 Hz
   /// while streaming, so appending here is the natural sampling point.
-  static const int liveHrTraceMax = 90;
+  // Keep fifteen minutes of foreground live HR at the nominal ~1 Hz stream
+  // rate.  This is still RAM-only; it is not a promise of all-day history.
+  static const int liveHrTraceMax = 900;
 
   /// A RECORD PER SAMPLE, not a bare bpm. Two devices streaming at once is two
   /// signals, and a flat `List<int>` drew them as one line with one headline
@@ -3488,10 +3498,22 @@ class AppState extends ChangeNotifier {
     return [for (final e in _liveHrTrace) if (e.deviceId == id) e.hr];
   }
 
+  /// Timestamped variant for range-aware charts. Timestamps are epoch
+  /// milliseconds from the BLE delivery event; callers must still describe
+  /// this as foreground/live data, not a persisted physiological history.
+  List<({int at, int hr})> liveHrTraceSamples([String? deviceId]) {
+    final id = deviceId ?? liveHrDeviceId;
+    if (id == null) return const [];
+    return [
+      for (final e in _liveHrTrace)
+        if (e.deviceId == id) (at: e.at, hr: e.hr),
+    ];
+  }
+
   /// Bumped on every appended sample. A `select` on the trace's LENGTH stops
   /// firing the moment the buffer is full — length is pinned at
   /// [liveHrTraceMax] from then on — so a card watching length would draw the
-  /// first 90 readings and then freeze while the numbers kept arriving. This is
+  /// first readings and then freeze while the numbers kept arriving. This is
   /// the thing that actually changes.
   int liveHrTraceRev = 0;
 
@@ -3571,7 +3593,7 @@ class AppState extends ChangeNotifier {
     _liveHrTrace.add((at: at, hr: hr, deviceId: deviceId));
     // The cap is PER DEVICE, so a second band cannot evict the first band's
     // trace by streaming faster.
-    // ponytail: reverse scan is O(n) at n <= 90 * devices, once per
+    // ponytail: reverse scan is O(n) at n <= liveHrTraceMax * devices, once per
     // delivered reading (~1 Hz). A per-device ring buffer is the upgrade if
     // a device count ever makes that matter, which two bands does not.
     var n = 0;

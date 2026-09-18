@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Edge — Simple Today prototype</title>
+    <style>
+      :root { color-scheme: dark; --bg:#101411; --surface:#1a211c; --line:#2d3830; --text:#f4f6f2; --muted:#9aa79e; --green:#85d29b; --amber:#f0c86a; --red:#ff8b82; --blue:#9bbcff; }
+      * { box-sizing:border-box; }
+      body { margin:0; min-height:100vh; background:radial-gradient(circle at 50% 0,#26352a 0,#101411 45%); color:var(--text); font:16px/1.35 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      main { width:min(100%, 460px); margin:auto; padding:28px 18px 48px; }
+      header { display:flex; justify-content:space-between; align-items:flex-start; margin:4px 2px 26px; }
+      h1 { font-size:28px; margin:0; letter-spacing:-.04em; } .date { color:var(--muted); margin-top:4px; }
+      button { font:inherit; color:inherit; cursor:pointer; } .icon { border:1px solid var(--line); background:rgba(24,31,26,.8); border-radius:99px; padding:9px 12px; }
+      .sync { display:flex; gap:10px; align-items:center; padding:12px 14px; background:rgba(133,210,155,.12); border:1px solid rgba(133,210,155,.25); border-radius:14px; margin-bottom:18px; }
+      .dot { width:9px; height:9px; border-radius:100%; background:var(--green); box-shadow:0 0 0 4px rgba(133,210,155,.12); } .sync small { color:var(--muted); display:block; } .sync strong { font-size:14px; }
+      .hero { background:linear-gradient(145deg,#222d24,#19211b); border:1px solid var(--line); border-radius:24px; padding:21px; }
+      .hero-top { display:flex; justify-content:space-between; align-items:start; } .eyebrow { color:var(--muted); font-size:13px; } .status { color:var(--green); font-size:13px; font-weight:700; }
+      .score { font-size:62px; letter-spacing:-.075em; font-weight:650; line-height:.95; margin:14px 0 7px; } .score span { font-size:20px; color:var(--muted); letter-spacing:0; }
+      .message { font-size:17px; margin:0; max-width:320px; } .baseline { color:var(--muted); font-size:13px; margin:14px 0 0; }
+      .tiles { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin:14px 0 28px; }
+      .tile { text-align:left; border:1px solid var(--line); background:var(--surface); padding:16px; border-radius:18px; min-height:130px; transition:.15s transform; } .tile:hover { transform:translateY(-2px); }
+      .label { color:var(--muted); font-size:13px; }.value { font-size:29px; letter-spacing:-.05em; font-weight:650; margin-top:17px; }.value small { color:var(--muted); font-size:14px; letter-spacing:0; font-weight:500; }.good { color:var(--green); }.normal { color:var(--blue); }.watch { color:var(--amber); }
+      h2 { font-size:16px; margin:0 2px 12px; letter-spacing:-.02em; }.vitals { border:1px solid var(--line); border-radius:18px; overflow:hidden; background:var(--surface); }.vital { width:100%; background:none; border:0; display:grid; grid-template-columns:1fr auto auto; align-items:center; gap:12px; padding:15px 16px; text-align:left; border-bottom:1px solid var(--line); }.vital:last-child { border:0; }.vital span { color:var(--muted); }.vital strong { font-size:16px; }.tag { font-size:12px; border-radius:99px; padding:4px 8px; background:#273a2d; color:var(--green); }.tag.normal { background:#273143; color:var(--blue); }.tag.watch { background:#42391f; color:var(--amber); }
+      .strap { margin-top:18px; border:1px solid rgba(240,200,106,.35); background:rgba(240,200,106,.09); padding:16px; border-radius:18px; display:flex; gap:12px; }.strap b { display:block; margin-bottom:3px; }.strap p { color:#e5d7ad; margin:0; font-size:14px; }
+      .heart { margin:0 0 28px; border:1px solid var(--line); background:var(--surface); border-radius:20px; padding:17px; }.heart-head { display:flex; align-items:center; justify-content:space-between; }.heart-head h2 { margin:0; }.heart-now { color:var(--green); font-size:26px; font-weight:650; letter-spacing:-.05em; }.heart-now small { font-size:12px; color:var(--muted); letter-spacing:0; font-weight:500; }.chart { width:100%; height:120px; display:block; margin:12px 0; overflow:visible; }.gridline { stroke:var(--line); stroke-width:1; }.trace { fill:none; stroke:var(--green); stroke-width:3; stroke-linecap:round; stroke-linejoin:round; }.range { display:flex; gap:7px; }.range button { border:1px solid var(--line); background:transparent; color:var(--muted); padding:7px 10px; border-radius:10px; font-size:12px; }.range button.active { background:#2a4431; border-color:#4f7b5b; color:var(--green); font-weight:700; }
+      .sheet { position:fixed; inset:auto 0 0; max-height:85vh; overflow:auto; background:#202821; border:1px solid var(--line); border-bottom:0; border-radius:26px 26px 0 0; padding:22px max(20px, calc((100vw - 424px)/2)); transform:translateY(105%); transition:.25s transform; }.sheet.open { transform:translateY(0); }.sheet h3 { margin:0 0 7px; }.sheet p { margin:0; color:var(--muted); }.close { margin-top:16px; padding:10px 14px; background:var(--green); color:#122016; border:0; border-radius:12px; font-weight:700; }.sync-progress { margin:18px 0; }.progress-track { height:7px; background:#344037; border-radius:99px; overflow:hidden; }.progress-fill { height:100%; width:100%; background:var(--green); border-radius:99px; }.sync-step { display:grid; grid-template-columns:22px 1fr; gap:10px; margin:14px 0; }.sync-step i { width:20px; height:20px; display:grid; place-items:center; background:#294632; border-radius:100%; color:var(--green); font-style:normal; font-size:12px; }.sync-step span { color:var(--muted); font-size:13px; display:block; margin-top:2px; }.sync-meta { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:16px; }.sync-meta div { padding:11px; border:1px solid var(--line); border-radius:12px; }.sync-meta small { color:var(--muted); display:block; }.sync-meta strong { display:block; margin-top:3px; font-size:14px; }.form-title { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.08em; margin:22px 0 8px; }.form-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }.field { padding:11px; border:1px solid var(--line); border-radius:12px; background:#182019; }.field label { color:var(--muted); display:block; font-size:12px; }.field input, .field select { width:100%; appearance:none; padding:3px 0 0; background:transparent; color:var(--text); border:0; outline:0; font:inherit; }.profile-note { font-size:13px; margin-top:12px !important; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header><div><h1>Good morning</h1><div class="date">Thursday, 17 September</div></div><button class="icon" id="profile" aria-label="Profile and calibration">•••</button></header>
+      <button class="sync" id="sync" style="width:100%; text-align:left"><span class="dot"></span><span><strong id="sync-title">Strap connected · up to date</strong><small id="sync-detail">Last sync 2 min ago · Tap to see status</small></span></button>
+      <section class="hero"><div class="hero-top"><div class="eyebrow">RECOVERY</div><div class="status">WITHIN YOUR NORMAL RANGE</div></div><div class="score">72 <span>/ 100</span></div><p class="message">Your body looks ready for a normal training day.</p><p class="baseline">Based on your recent sleep, HRV, resting HR and respiratory rate.</p></section>
+      <section class="tiles">
+        <button class="tile"><div class="label">SLEEP · WITHIN RANGE</div><div class="value good">7h 34m</div><div class="label">86% of your need</div></button>
+        <button class="tile"><div class="label">STRAIN · ON TRACK</div><div class="value normal">8.6 <small>/ 12</small></div><div class="label">Daily target</div></button>
+        <button class="tile"><div class="label">STRESS · LOW</div><div class="value good">1.4 <small>/ 3</small></div><div class="label">Current estimate</div></button>
+        <button class="tile"><div class="label">VO₂ MAX · APPLE HEALTH</div><div class="value normal">43.2</div><div class="label">ml/kg/min · 12 Sep</div></button>
+        <button class="tile"><div class="label">STEPS · IPHONE MOTION</div><div class="value normal">5,842</div><div class="label">Today · direct sensor</div></button>
+      </section>
+      <section class="heart">
+        <div class="heart-head"><h2>Heart rate</h2><div class="heart-now"><span id="bpm">68</span> <small>bpm now</small></div></div>
+        <svg class="chart" viewBox="0 0 380 120" preserveAspectRatio="none" aria-label="Heart rate chart"><path class="gridline" d="M0 25H380M0 60H380M0 95H380"/><polyline class="trace" id="trace" points="0,77 20,72 40,78 60,67 80,72 100,56 120,65 140,51 160,61 180,46 200,59 220,51 240,65 260,57 280,46 300,53 320,41 340,50 360,45 380,48"/></svg>
+        <div class="range" aria-label="Heart rate timeframe"><button class="active" data-range="15m">15 min</button><button data-range="1h">1 hour</button><button data-range="1d">1 day</button></div>
+      </section>
+      <h2>Body signals</h2>
+      <section class="vitals">
+        <button class="vital"><span>Resting heart rate</span><strong>56 bpm</strong><i class="tag">normal</i></button>
+        <button class="vital"><span>HRV</span><strong>62 ms</strong><i class="tag">normal</i></button>
+        <button class="vital"><span>Respiratory rate</span><strong>14.2 /min</strong><i class="tag">normal</i></button>
+        <button class="vital"><span>Oxygen signal</span><strong>Stable</strong><i class="tag normal">trend only</i></button>
+        <button class="vital"><span>Health check</span><strong>No warnings</strong><i class="tag">normal</i></button>
+      </section>
+      <section class="strap"><div>▣</div><div><b>Battery 28% · charge tonight</b><p>Enough for today. We will notify you again below 15%.</p></div></section>
+    </main>
+    <aside class="sheet" id="sheet">
+      <h3 id="sheet-title">Sync is complete</h3><p id="sheet-copy">Your strap and phone agree on the data through 09:42.</p>
+      <div class="sync-progress"><div class="progress-track"><div class="progress-fill"></div></div></div>
+      <div class="sync-step"><i>✓</i><div><b>Connected to WHOOP 4.0</b><span>Strong Bluetooth signal · worn</span></div></div>
+      <div class="sync-step"><i>✓</i><div><b>Checked strap history</b><span>17 Sep, 00:00–09:42 · no missing blocks</span></div></div>
+      <div class="sync-step"><i>✓</i><div><b>Downloaded and saved records</b><span>9 h 42 min of data · safely stored on this phone</span></div></div>
+      <div class="sync-step"><i>✓</i><div><b>Analysed today</b><span>Sleep, recovery, strain and baseline checks are current</span></div></div>
+      <div class="sync-meta"><div><small>Last completed</small><strong>09:42 · 2 min ago</strong></div><div><small>Next automatic check</small><strong>When the app opens</strong></div></div>
+      <button class="close" id="close">Done</button>
+    </aside>
+    <aside class="sheet" id="profile-sheet">
+      <h3>Your profile & calibration</h3><p>These settings make targets and personal-baseline comparisons meaningful. They remain on your phone.</p>
+      <div class="form-title">About you</div><div class="form-grid"><div class="field"><label>Birth year</label><input value="1990" inputmode="numeric"></div><div class="field"><label>Sex for physiology models</label><select><option>Prefer not to say</option><option>Female</option><option>Male</option></select></div><div class="field"><label>Height</label><input value="175 cm"></div><div class="field"><label>Weight</label><input value="70 kg"></div></div>
+      <div class="form-title">Your goals</div><div class="form-grid"><div class="field"><label>Daily strain target</label><input value="12.0"></div><div class="field"><label>Sleep target</label><input value="8 h"></div></div>
+      <div class="form-title">Data sources</div><div class="form-grid"><div class="field"><label>Steps</label><select><option>iPhone Motion (recommended)</option><option>Apple Health</option><option>Strap estimate</option></select></div><div class="field"><label>VO₂ max</label><select><option>Apple Health</option><option>Hide when unavailable</option></select></div></div>
+      <p class="profile-note">Baselines are learned from at least 28 good-quality days. You can reset a baseline if a major change—illness, medication, pregnancy, or training block—makes the old comparison misleading.</p><button class="close" id="profile-close">Save changes</button>
+    </aside>
+    <script>
+      const sync = document.querySelector('#sync'), sheet = document.querySelector('#sheet');
+      sync.onclick = () => sheet.classList.add('open'); document.querySelector('#close').onclick = () => sheet.classList.remove('open');
+      const profile = document.querySelector('#profile'), profileSheet = document.querySelector('#profile-sheet'); profile.onclick = () => profileSheet.classList.add('open'); document.querySelector('#profile-close').onclick = () => profileSheet.classList.remove('open');
+      const data = { '15m': { bpm:68, points:'0,77 20,72 40,78 60,67 80,72 100,56 120,65 140,51 160,61 180,46 200,59 220,51 240,65 260,57 280,46 300,53 320,41 340,50 360,45 380,48' }, '1h': { bpm:68, points:'0,83 20,72 40,74 60,90 80,67 100,81 120,57 140,76 160,45 180,69 200,57 220,80 240,59 260,64 280,45 300,52 320,70 340,42 360,59 380,48' }, '1d': { bpm:68, points:'0,91 20,88 40,93 60,84 80,89 100,75 120,83 140,62 160,78 180,58 200,75 220,41 240,69 260,50 280,80 300,62 320,38 340,74 360,53 380,67' } };
+      document.querySelectorAll('[data-range]').forEach(button => button.onclick = () => { document.querySelectorAll('[data-range]').forEach(b => b.classList.remove('active')); button.classList.add('active'); const point = data[button.dataset.range]; document.querySelector('#bpm').textContent = point.bpm; document.querySelector('#trace').setAttribute('points', point.points); });
+    </script>
+  </body>
+</html>
