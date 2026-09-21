@@ -142,6 +142,18 @@ class _PairingScreenState extends State<PairingScreen> {
         await app.pairWith(found);
       }
       if (!mounted) return;
+      // Saving Chrome's selected device is not the same thing as opening its
+      // GATT connection. `pairWith` starts the first session before it
+      // returns; do not call this a successful pair (or jump to Today) when
+      // that session has already failed underneath us.
+      if (!app.engine.isConnected) {
+        setState(() {
+          _phase = PairPhase.failed;
+          _detail = app.logLines.firstOrNull ??
+              'Chrome selected the band, but the Bluetooth connection did not complete.';
+        });
+        return;
+      }
       // Pairing is the decision, not an extra confirmation screen. The first
       // sync keeps running in the background and its live progress is shown
       // on Today, so take the person forward as soon as the system picker
