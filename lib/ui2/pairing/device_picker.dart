@@ -188,10 +188,18 @@ class _DevicePickerScreenState extends State<DevicePickerScreen> {
   /// A category or brand row, tapped deliberately rather than found live.
   Future<void> _openEntry(BandEntry entry) async {
     if (entry.isFramed) {
+      final app = context.read<AppState>();
       await Navigator.of(context).push(MaterialPageRoute<void>(
         builder: (_) => const PairingScreen(),
       ));
-      if (mounted) await _afterPair();
+      if (!mounted) return;
+      await _afterPair();
+      // This picker was opened from Today specifically to repair the primary
+      // band. Once that pairing succeeds, return through it to the dashboard
+      // rather than leaving the person on the nearby-device list.
+      if (mounted && app.isPaired) {
+        Navigator.of(context).pop();
+      }
       return;
     }
     // `.where(...).firstOrNull`, never `firstWhere`: the category list comes

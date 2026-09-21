@@ -142,7 +142,11 @@ class _PairingScreenState extends State<PairingScreen> {
         await app.pairWith(found);
       }
       if (!mounted) return;
-      setState(() => _phase = PairPhase.paired);
+      // Pairing is the decision, not an extra confirmation screen. The first
+      // sync keeps running in the background and its live progress is shown
+      // on Today, so take the person forward as soon as the system picker
+      // hands us a band instead of making them press Continue once more.
+      _continueToApp();
     } catch (e) {
       if (!mounted) return;
       setState(() {
