@@ -8,8 +8,23 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $source = Split-Path -Parent $MyInvocation.MyCommand.Path
-$preview = Join-Path $env:TEMP 'openstrap-edge-web-preview'
+# A unique directory is intentional. Reusing one preview meant Flutter could
+# reuse stale build artefacts from an earlier source copy, so the launcher could
+# open an old screen after an update. Each launch now starts from the source
+# tree that exists at the moment the batch file is pressed.
+$preview = Join-Path $env:TEMP ("openstrap-edge-web-preview-" + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Force -Path $preview | Out-Null
+
+try {
+  $revision = (& git -C $source rev-parse --short HEAD 2>$null)
+} catch {
+  $revision = $null
+}
+if ([string]::IsNullOrWhiteSpace($revision)) {
+  $revision = 'local changes'
+}
+Write-Host "OpenStrap source revision: $revision"
+Write-Host "Fresh preview: $preview"
 
 & robocopy $source $preview /E `
   /XD .git .flutter-appdata .pub-cache .generated-l10n protocol-research build `
