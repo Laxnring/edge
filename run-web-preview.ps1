@@ -21,7 +21,7 @@ if ($normalLaunch) {
     try {
       $response = Invoke-WebRequest -UseBasicParsing -Uri 'http://localhost:65429/' -TimeoutSec 3
       if ($response.StatusCode -eq 200 -and $response.Content -match 'flutter_bootstrap') {
-        Write-Host 'NOOP is already running at http://localhost:65429 — opening it in Chrome.'
+        Write-Host 'NOOP is already running at http://localhost:65429 - opening it in Chrome.'
         Start-Process 'http://localhost:65429'
         exit 0
       }
