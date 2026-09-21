@@ -1365,6 +1365,8 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
         l?.homeSyncingTitle ?? 'Syncing with your band',
         l?.homeSyncingBody ?? 'Pulling data now — this can take a few minutes '
             'on a full backlog.',
+        fix: 'View live sync stream',
+        onFix: () => go(c, const SyncDetailsScreen()),
         leading: spinner,
       );
     }
@@ -1373,6 +1375,8 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
         l?.homeAnalyzingTitle ?? 'Crunching last night\'s numbers',
         l?.homeAnalyzingBody ?? 'The data is in — sleep, recovery and strain '
             'are next.',
+        fix: 'View live sync stream',
+        onFix: () => go(c, const SyncDetailsScreen()),
         leading: spinner,
       );
     }
@@ -1381,6 +1385,8 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
         'Waiting for the sync to settle',
         'Last night\'s summary is queued. Keep this tab open while the strap '
             'finishes sending its history.',
+        fix: 'View live sync stream',
+        onFix: () => go(c, const SyncDetailsScreen()),
         leading: spinner,
       );
     }

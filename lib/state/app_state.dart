@@ -5259,6 +5259,11 @@ class AppState extends ChangeNotifier {
   /// the first frame this connection.
   DateTime? get lastDataAt => engine.lastRxAt;
 
+  /// A read-only snapshot of the live WHOOP history-transfer pipeline. These
+  /// are observed counters from the BLE engine, not a guessed percentage: the
+  /// band does not reliably advertise how much history remains.
+  Map<String, dynamic> get syncSnapshot => engine.offloadSnapshot;
+
   final SyncActivityWindow _syncActivity = SyncActivityWindow();
 
   /// Fires once when the activity window closes. `syncingNow` decays on

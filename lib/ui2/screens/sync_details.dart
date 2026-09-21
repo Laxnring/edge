@@ -128,6 +128,7 @@ class SyncDetailsScreen extends StatelessWidget {
       'syncing=${app.syncingNow}',
       'deriving=${app.deriving}',
       'derive_pending=${app.derivePending}',
+      'stream=${app.syncSnapshot}',
       'phone_steps_enabled=${app.phoneStepsEnabled}',
       'phone_steps_today=${app.phoneStepsToday}',
       'phone_steps_last_error=${app.phoneStepsLastError ?? 'none'}',
@@ -144,6 +145,7 @@ class SyncDetailsScreen extends StatelessWidget {
     final receiving = app.syncingNow;
     final deriving = app.deriving;
     final pending = app.derivePending;
+    final stream = app.syncSnapshot;
     final connected = device.connection == 'connected';
     final bleStale = connected && isBleStale(
       app.lastDataAt,
@@ -235,6 +237,51 @@ class SyncDetailsScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
+                    'Live data stream',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'These are live counters from the WHOOP transfer — they '
+                    'change only when the band actually sends data.',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                  const SizedBox(height: 12),
+                  _StreamRow('History transfer',
+                      stream['active'] == true ? 'active' : 'idle'),
+                  _StreamRow('Frames waiting to decode',
+                      '${stream['queued_frames'] ?? 0}'),
+                  _StreamRow('Records seen from WHOOP',
+                      '${stream['records_seen'] ?? 0}'),
+                  _StreamRow('Batches safely stored',
+                      '${stream['batches_acked'] ?? 0}'),
+                  _StreamRow('Records buffered for next save',
+                      '${stream['buffered_records'] ?? 0}'),
+                  _StreamRow('History requests / completed',
+                      '${stream['history_requests'] ?? 0} / ${stream['history_completions'] ?? 0}'),
+                  _StreamRow('Last BLE packet', _age(app.lastDataAt)),
+                  _StreamRow('Newest stored band record', _when(app.lastRecordAt)),
+                  if (stream['history_stuck'] == true)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 10),
+                      child: Text(
+                        'History transfer stopped defensively. The band kept '
+                        'its checkpoint; reconnecting is safe.',
+                        style: TextStyle(color: Colors.orange),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
                     'Diagnostics',
                     style: TextStyle(fontWeight: FontWeight.w700),
                   ),
@@ -289,11 +336,12 @@ class SyncDetailsScreen extends StatelessWidget {
             const SizedBox(height: 12),
             Card(
               child: ExpansionTile(
+                initiallyExpanded: receiving || bleStale,
                 leading: const Icon(LucideIcons.list),
-                title: const Text('Recent engine events'),
+                title: const Text('Live protocol events'),
                 subtitle: Text('${app.logLines.length} local events recorded'),
                 children: [
-                  for (final line in app.logLines.reversed.take(8))
+                  for (final line in app.logLines.take(12))
                     ListTile(
                       dense: true,
                       title: Text(line, style: const TextStyle(fontSize: 12)),
@@ -387,6 +435,25 @@ class _Stage extends StatelessWidget {
           : null,
     );
   }
+}
+
+class _StreamRow extends StatelessWidget {
+  const _StreamRow(this.label, this.value);
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: Row(
+          children: [
+            Expanded(child: Text(label)),
+            const SizedBox(width: 12),
+            Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
+          ],
+        ),
+      );
 }
 
 class _SyncExplanation {
