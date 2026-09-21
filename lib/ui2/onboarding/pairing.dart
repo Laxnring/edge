@@ -11,6 +11,7 @@
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
@@ -128,7 +129,9 @@ class _PairingScreenState extends State<PairingScreen> {
       _blocker = null;
     });
     try {
-      if (await app.accessorySetupSupported()) {
+      // Chrome requires requestDevice() during this tap. Do not await the
+      // mobile-only AccessorySetup probe first: that loses browser activation.
+      if (!kIsWeb && await app.accessorySetupSupported()) {
         await app.pairViaAccessorySetup();
       } else {
         final found = await app.scanForBand();
@@ -150,14 +153,29 @@ class _PairingScreenState extends State<PairingScreen> {
     }
   }
 
+  /// A picker result means the user has deliberately completed the pairing
+  /// step, even if the first GATT sync is still catching up or has dropped.
+  /// The old view sent its `Continue` button back into [_pair], reopening the
+  /// browser chooser indefinitely and trapping a successfully selected band
+  /// on this screen. Enter the app instead; connection state is surfaced on
+  /// the dashboard and reconnect remains active in the background.
+  void _continueToApp() {
+    if (widget.onSkip != null) {
+      widget.onSkip!();
+    } else {
+      OnboardingBypass.mark(OnboardingBypass.kPairing);
+      Navigator.of(context).maybePop();
+    }
+  }
+
   @override
   Widget build(BuildContext c) => PairingView(
-        phase: _phase,
-        detail: _detail,
-        blocker: _blocker,
-        onPair: _pair,
-        onSkip: widget.onSkip,
-      );
+    phase: _phase,
+    detail: _detail,
+    blocker: _blocker,
+    onPair: _phase == PairPhase.paired ? _continueToApp : _pair,
+    onSkip: widget.onSkip,
+  );
 }
 
 class PairingView extends StatelessWidget {
@@ -186,7 +204,9 @@ class PairingView extends StatelessWidget {
     // Devices screen cannot drift into two different accounts of one state.
     final blocked = phase == PairPhase.bluetoothBlocked
         ? localizedBandStatus(
-            c, bandStatusFor(connection: 'disconnected', blocker: blocker))
+            c,
+            bandStatusFor(connection: 'disconnected', blocker: blocker),
+          )
         : null;
     return Scaffold(
       backgroundColor: p.bg,
@@ -195,20 +215,28 @@ class PairingView extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(S.x4, S.x8, S.x4, S.x8),
           children: [
             Icon(
-                blocked == null
-                    ? LucideIcons.bluetooth
-                    : LucideIcons.bluetoothOff,
-                size: 36,
-                color: p.on(C.blue)),
+              blocked == null
+                  ? LucideIcons.bluetooth
+                  : LucideIcons.bluetoothOff,
+              size: 36,
+              color: p.on(C.blue),
+            ),
             const SizedBox(height: S.x5),
             Text(_title(c, phase, blocker), style: F.t1.copyWith(color: p.ink)),
             const SizedBox(height: S.x3),
-            Text(_body(c, phase, blocker), style: F.body.copyWith(color: p.ink2)),
+            Text(
+              _body(c, phase, blocker),
+              style: F.body.copyWith(color: p.ink2),
+            ),
             if (blocked?.fix != null) ...[
               const SizedBox(height: S.x3),
-              Text(blocked!.fix!,
-                  style: F.body.copyWith(
-                      color: p.on(C.blue), fontWeight: FontWeight.w600)),
+              Text(
+                blocked!.fix!,
+                style: F.body.copyWith(
+                  color: p.on(C.blue),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ],
             if (busy) ...[
               const SizedBox(height: S.x8),
@@ -216,16 +244,22 @@ class PairingView extends StatelessWidget {
             ],
             ..._advice(c, phase, detail),
             const SizedBox(height: S.x8),
-            BigButton(_cta(c, phase),
-                icon: LucideIcons.radio,
-                color: C.blue,
-                onTap: busy ? null : onPair),
+            BigButton(
+              _cta(c, phase),
+              icon: LucideIcons.radio,
+              color: C.blue,
+              onTap: busy ? null : onPair,
+            ),
             if (onSkip != null && phase != PairPhase.paired) ...[
               const SizedBox(height: S.x3),
               // Never disabled, not even mid-scan: waiting out a scan you
               // already know will fail is exactly the trap this exists for.
-              BigButton(AppLocalizations.of(c)?.pairingSkipForNow ?? 'Skip for now',
-                  color: C.blue, soft: true, onTap: onSkip),
+              BigButton(
+                AppLocalizations.of(c)?.pairingSkipForNow ?? 'Skip for now',
+                color: C.blue,
+                soft: true,
+                onTap: onSkip,
+              ),
               const SizedBox(height: S.x2),
               Text(
                 AppLocalizations.of(c)?.pairingSkipNote ??
@@ -244,14 +278,17 @@ class PairingView extends StatelessWidget {
     final l = AppLocalizations.of(c);
     return switch (phase) {
       PairPhase.bluetoothBlocked => localizedBandStatus(
-          c, bandStatusFor(connection: 'disconnected', blocker: blocker))
-        .title,
-      PairPhase.idle => l?.pairingIdleTitle ?? 'Wake the band and hold it close',
+        c,
+        bandStatusFor(connection: 'disconnected', blocker: blocker),
+      ).title,
+      PairPhase.idle =>
+        l?.pairingIdleTitle ?? 'Wake the band and hold it close',
       PairPhase.scanning => l?.pairingScanningTitle ?? 'Looking for your band',
       PairPhase.notFound => l?.pairingNotFoundTitle ?? 'No band in range',
       PairPhase.bondRefused =>
         l?.pairingBondRefusedTitle ?? 'The band refused the pairing',
-      PairPhase.cancelled => l?.pairingCancelledTitle ?? 'Pairing was cancelled',
+      PairPhase.cancelled =>
+        l?.pairingCancelledTitle ?? 'Pairing was cancelled',
       PairPhase.failed => l?.pairingFailedTitle ?? 'Pairing did not complete',
       PairPhase.paired => l?.pairingPairedTitle ?? 'Paired',
     };
@@ -261,25 +298,32 @@ class PairingView extends StatelessWidget {
     final l = AppLocalizations.of(c);
     return switch (phase) {
       PairPhase.bluetoothBlocked => localizedBandStatus(
-          c, bandStatusFor(connection: 'disconnected', blocker: blocker))
-        .reason,
-      PairPhase.idle => l?.pairingIdleBody ??
-          'Take the band off the charger, put it on your wrist and keep the '
-              'phone within arm’s reach.',
-      PairPhase.scanning => l?.pairingScanningBody ??
-          'A band that has just come off the charger can take up to half a '
-              'minute to start advertising.',
-      PairPhase.notFound => l?.pairingNotFoundBody ??
-          'Nothing answered the scan. The band advertises only when it is '
-              'awake and not already connected to another phone.',
-      PairPhase.bondRefused => l?.pairingBondRefusedBody ??
-          'The link came up, but the band would not accept the encryption '
-              'key. That is almost always a stale pairing record on this '
-              'phone rather than a fault in the band.',
-      PairPhase.cancelled => l?.pairingCancelledBody ??
-          'The system picker was dismissed before a band was chosen.',
-      PairPhase.failed => l?.pairingFailedBody ??
-          'The band was reachable but the session did not finish.',
+        c,
+        bandStatusFor(connection: 'disconnected', blocker: blocker),
+      ).reason,
+      PairPhase.idle =>
+        l?.pairingIdleBody ??
+            'Take the band off the charger, put it on your wrist and keep the '
+                'phone within arm’s reach.',
+      PairPhase.scanning =>
+        l?.pairingScanningBody ??
+            'A band that has just come off the charger can take up to half a '
+                'minute to start advertising.',
+      PairPhase.notFound =>
+        l?.pairingNotFoundBody ??
+            'Nothing answered the scan. The band advertises only when it is '
+                'awake and not already connected to another phone.',
+      PairPhase.bondRefused =>
+        l?.pairingBondRefusedBody ??
+            'The link came up, but the band would not accept the encryption '
+                'key. That is almost always a stale pairing record on this '
+                'phone rather than a fault in the band.',
+      PairPhase.cancelled =>
+        l?.pairingCancelledBody ??
+            'The system picker was dismissed before a band was chosen.',
+      PairPhase.failed =>
+        l?.pairingFailedBody ??
+            'The band was reachable but the session did not finish.',
       PairPhase.paired => l?.pairingPairedBody ?? 'Setting up the first sync.',
     };
   }
@@ -289,7 +333,8 @@ class PairingView extends StatelessWidget {
     return switch (phase) {
       PairPhase.idle => l?.pairingFindMyBand ?? 'Find my band',
       PairPhase.scanning => l?.pairingSearching ?? 'Searching…',
-      PairPhase.cancelled => l?.pairingOpenPickerAgain ?? 'Open the picker again',
+      PairPhase.cancelled =>
+        l?.pairingOpenPickerAgain ?? 'Open the picker again',
       PairPhase.paired => l?.actionContinue ?? 'Continue',
       _ => l?.pairingTryAgain ?? 'Try again',
     };
@@ -300,49 +345,49 @@ class PairingView extends StatelessWidget {
     final l = AppLocalizations.of(c);
     return switch (phase) {
       PairPhase.notFound => [
-          const SizedBox(height: S.x6),
-          StatusCard(
-            l?.pairingNotFoundAdviceTitle ??
-                'Three things stop a band answering',
-            l?.pairingNotFoundAdviceBody ??
-                'It is still on the charger; it is out of range; or it is '
-                    'still connected to another phone or to the vendor app.',
-            fix: l?.pairingNotFoundAdviceFix ??
-                'Force-quit the other app, then scan again',
-            icon: LucideIcons.searchX,
-          ),
-        ],
+        const SizedBox(height: S.x6),
+        StatusCard(
+          l?.pairingNotFoundAdviceTitle ?? 'Three things stop a band answering',
+          l?.pairingNotFoundAdviceBody ??
+              'It is still on the charger; it is out of range; or it is '
+                  'still connected to another phone or to the vendor app.',
+          fix:
+              l?.pairingNotFoundAdviceFix ??
+              'Force-quit the other app, then scan again',
+          icon: LucideIcons.searchX,
+        ),
+      ],
       PairPhase.bondRefused => [
-          const SizedBox(height: S.x6),
-          StatusCard(
-            l?.pairingBondRefusedAdviceTitle ??
-                'Forget the band in Bluetooth settings first',
-            l?.pairingBondRefusedAdviceBody ??
-                'Open the phone’s Bluetooth settings, forget the band, '
-                    'then scan again here. The refused key is the old pairing '
-                    'record, and only the system can clear it.',
-            fix: l?.pairingBondRefusedAdviceFix ?? 'Open Bluetooth settings',
-            icon: LucideIcons.unlink,
-          ),
-          if (detail.isNotEmpty) ...[
-            const SizedBox(height: S.x3),
-            _Detail(detail),
-          ],
+        const SizedBox(height: S.x6),
+        StatusCard(
+          l?.pairingBondRefusedAdviceTitle ??
+              'Forget the band in Bluetooth settings first',
+          l?.pairingBondRefusedAdviceBody ??
+              'Open the phone’s Bluetooth settings, forget the band, '
+                  'then scan again here. The refused key is the old pairing '
+                  'record, and only the system can clear it.',
+          fix: l?.pairingBondRefusedAdviceFix ?? 'Open Bluetooth settings',
+          icon: LucideIcons.unlink,
+        ),
+        if (detail.isNotEmpty) ...[
+          const SizedBox(height: S.x3),
+          _Detail(detail),
         ],
+      ],
       PairPhase.failed => [
-          const SizedBox(height: S.x6),
-          StatusCard(
-            l?.pairingFailedAdviceTitle ??
-                'The band was found but the session did not finish',
-            l?.pairingFailedAdviceBody ??
-                'Scanning again from a metre away normally works.',
-            icon: LucideIcons.triangleAlert,
-          ),
-          if (detail.isNotEmpty) ...[
-            const SizedBox(height: S.x3),
-            _Detail(detail),
-          ],
+        const SizedBox(height: S.x6),
+        StatusCard(
+          l?.pairingFailedAdviceTitle ??
+              'The band was found but the session did not finish',
+          l?.pairingFailedAdviceBody ??
+              'Scanning again from a metre away normally works.',
+          icon: LucideIcons.triangleAlert,
+        ),
+        if (detail.isNotEmpty) ...[
+          const SizedBox(height: S.x3),
+          _Detail(detail),
         ],
+      ],
       _ => const [],
     };
   }

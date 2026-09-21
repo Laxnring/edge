@@ -79,9 +79,14 @@ the project:
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\flutter-local.ps1 pub get
 powershell -ExecutionPolicy Bypass -File .\flutter-local.ps1 test --no-pub
-# Optional local UI run (downloads the Web/Windows engine on first use)
-powershell -ExecutionPolicy Bypass -File .\flutter-local.ps1 run -d chrome
+# Local Chrome preview. It copies the project outside OneDrive first because
+# Flutter rejects OneDrive cloud-placeholder files during a web build.
+powershell -ExecutionPolicy Bypass -File .\run-web-preview.ps1
 ```
+
+Or simply double-click `RUN_EDGE.bat` in Windows Explorer. Keep its terminal
+window open while using the Chrome preview; it shows build progress and keeps
+any error visible instead of closing immediately.
 
 The launcher assumes the Flutter SDK is installed at `C:\flutter-sdk`. Change
 the `$sdk` value in `flutter-local.ps1` if it is elsewhere.

@@ -46,7 +46,7 @@ import 'dart:io' show Platform;
 
 import 'package:collection/collection.dart' show IterableExtension;
 import 'package:flutter/foundation.dart'
-    show ValueListenable, ValueNotifier, debugPrint, visibleForTesting;
+    show ValueListenable, ValueNotifier, debugPrint, visibleForTesting, kIsWeb;
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 import '../data/db.dart';
@@ -273,12 +273,16 @@ class HrsLink {
     required void Function(List<BandCandidate>) onResults,
     Duration timeout = _scanWindow,
   }) {
-    assert(!entry.isFramed,
-        '${entry.id} is a framed band — pair it through BleEngine.scan.');
+    assert(
+      !entry.isFramed,
+      '${entry.id} is a framed band — pair it through BleEngine.scan.',
+    );
     // Process-wide, because the radio has ONE scanner and the band's own scan
     // shares it. Without this, whichever scan called `stopScan` first ended
     // the other one having seen nothing, with no error to say why.
-    return withScanLock(() => _scanForEntries([entry], owner, onResults, timeout));
+    return withScanLock(
+      () => _scanForEntries([entry], owner, onResults, timeout),
+    );
   }
 
   /// Like [scanFor], swept across every entry in [entries] at once — the
@@ -298,9 +302,13 @@ class HrsLink {
     Duration timeout = _scanWindow,
   }) {
     assert(entries.isNotEmpty, 'scanForAny needs at least one entry.');
-    assert(entries.every((e) => !e.isFramed),
-        'a framed band has no notify-class scan to join.');
-    return withScanLock(() => _scanForEntries(entries, owner, onResults, timeout));
+    assert(
+      entries.every((e) => !e.isFramed),
+      'a framed band has no notify-class scan to join.',
+    );
+    return withScanLock(
+      () => _scanForEntries(entries, owner, onResults, timeout),
+    );
   }
 
   static Future<void> _scanForEntries(
@@ -381,7 +389,8 @@ class HrsLink {
         // placeholder. A name that drops out of a later advertisement keeps
         // the one we already had — losing it mid-scan would make the row the
         // user is reaching for change under their finger.
-        final label = cleanDeviceLabel(r.advertisementData.advName) ??
+        final label =
+            cleanDeviceLabel(r.advertisementData.advName) ??
             cleanDeviceLabel(r.device.platformName) ??
             was?.label;
         // Re-attempted on EVERY advertisement until one confirms, then fixed:
@@ -389,12 +398,15 @@ class HrsLink {
         // identity mid-scan) and re-reading it would only add work.
         final svcMatch = serviceMatchFor(r.advertisementData.serviceUuids);
         if (svcMatch != null) confirmed[id] = svcMatch;
-        final match = confirmed[id] ??
+        final match =
+            confirmed[id] ??
             svcMatch ??
-            nameMatchFor((r.advertisementData.advName.isNotEmpty
-                    ? r.advertisementData.advName
-                    : r.device.platformName)
-                .toLowerCase());
+            nameMatchFor(
+              (r.advertisementData.advName.isNotEmpty
+                      ? r.advertisementData.advName
+                      : r.device.platformName)
+                  .toLowerCase(),
+            );
         final now = (
           device: r.device,
           label: label,
@@ -453,11 +465,16 @@ class HrsLink {
   /// the band's engine. The classifier itself ([classifyBleBlocker]) is
   /// shared, which is the half that has to stay in one place.
   static Future<BleBlocker?> _detectBlocker() async {
+    // Chrome's getAvailability() is a policy/configuration hint, not proof of
+    // physical hardware. Its chooser is the real user-initiated BLE test.
+    if (kIsWeb) return null;
     try {
       final s = await FlutterBluePlus.adapterState
           .firstWhere((s) => s != BluetoothAdapterState.unknown)
-          .timeout(_blockerProbe,
-              onTimeout: () => BluetoothAdapterState.unknown);
+          .timeout(
+            _blockerProbe,
+            onTimeout: () => BluetoothAdapterState.unknown,
+          );
       return classifyBleBlocker(adapterState: s.name);
     } catch (e) {
       return classifyBleBlocker(error: e);
@@ -492,7 +509,7 @@ class HrsLink {
   /// ASK has provisioned the WHOOP the picker is not needed again, and a phone
   /// that already has a live session already has a central anyway.
   static Future<String?> scanHeldBackReason() async {
-    if (!Platform.isIOS) return null;
+    if (kIsWeb || !Platform.isIOS) return null;
     if (!await AccessorySetup.isSupported()) return null;
     if (await AccessorySetup.provisionedId() != null) return null;
     return 'Your main band is not paired yet. Searching for a sensor now starts '
@@ -582,8 +599,9 @@ class HrsLink {
         services: services,
         onLog: (m) => debugPrint('[hrs] pair: $m'),
       );
-      final missing =
-          link.missingCharacteristics(entry.requiredCharacteristics);
+      final missing = link.missingCharacteristics(
+        entry.requiredCharacteristics,
+      );
       if (missing.isNotEmpty) {
         link.close();
         return 'That device answered, but it does not expose the '
@@ -619,7 +637,9 @@ class HrsLink {
       // nobody asked for.
       try {
         await device.disconnect();
-      } catch (_) {/* already gone */}
+      } catch (_) {
+        /* already gone */
+      }
     }
   }
 
@@ -846,7 +866,9 @@ class HrsLink {
   Future<bool> _armAfter(Future<void> teardown) async {
     try {
       await teardown;
-    } catch (_) {/* the disarm caller's error, not ours */}
+    } catch (_) {
+      /* the disarm caller's error, not ours */
+    }
     return arm();
   }
 
@@ -872,8 +894,10 @@ class HrsLink {
     if (deviceId == LocalDb.kPrimaryDeviceId) {
       // The primary band's id, permanently. A sensor writing under it would
       // interleave its seconds with the band's in one REPLACE-keyed table.
-      debugPrint('[hrs] refusing to arm: the sensor row claims the primary '
-          'device id — re-pair it with a minted id.');
+      debugPrint(
+        '[hrs] refusing to arm: the sensor row claims the primary '
+        'device id — re-pair it with a minted id.',
+      );
       return false;
     }
     // Declared OUT here so the catch can reach it: `_device` is not a
@@ -917,11 +941,14 @@ class HrsLink {
         onLog: (m) => debugPrint('[hrs] $m'),
       );
       _link = link;
-      final missing =
-          link.missingCharacteristics(kBleHrsAdapter.entry.requiredCharacteristics);
+      final missing = link.missingCharacteristics(
+        kBleHrsAdapter.entry.requiredCharacteristics,
+      );
       if (missing.isNotEmpty) {
-        debugPrint('[hrs] ${kBleHrsAdapter.label}: missing required '
-            'characteristic(s) ${missing.map((u) => u.substring(0, 8)).join(", ")}.');
+        debugPrint(
+          '[hrs] ${kBleHrsAdapter.label}: missing required '
+          'characteristic(s) ${missing.map((u) => u.substring(0, 8)).join(", ")}.',
+        );
         await _teardownQuietly();
         return false;
       }
@@ -946,11 +973,13 @@ class HrsLink {
       // The counter has already moved by then, because `disarm` increments it
       // synchronously. A host left over from an earlier arm generation is
       // excluded by the same test.
-      unawaited(host.run(link).whenComplete(() {
-        if (_disarms != disarmsAtStart) return;
-        debugPrint('[hrs] session ended on its own — releasing the link.');
-        unawaited(disarm());
-      }));
+      unawaited(
+        host.run(link).whenComplete(() {
+          if (_disarms != disarmsAtStart) return;
+          debugPrint('[hrs] session ended on its own — releasing the link.');
+          unawaited(disarm());
+        }),
+      );
       // A sensor that walks out of range mid-session ends the log there rather
       // than leaving the link claiming to be armed when it is gone.
       _connSub = device.connectionState.listen((s) {
@@ -1018,7 +1047,9 @@ class HrsLink {
     if (_device != null && !identical(_device, device)) return;
     try {
       await device.disconnect();
-    } catch (_) {/* already gone */}
+    } catch (_) {
+      /* already gone */
+    }
   }
 
   /// Stop logging, flush the tail and drop the link. Safe to call when not
@@ -1057,7 +1088,9 @@ class HrsLink {
     if (prev != null) {
       try {
         await prev;
-      } catch (_) {/* the previous caller's error, not ours */}
+      } catch (_) {
+        /* the previous caller's error, not ours */
+      }
     }
     await _disarm();
   }
@@ -1108,7 +1141,9 @@ class HrsLink {
       if (d != null) {
         try {
           await d.disconnect();
-        } catch (_) {/* already gone */}
+        } catch (_) {
+          /* already gone */
+        }
       }
     }
   }

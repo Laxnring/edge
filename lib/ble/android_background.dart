@@ -47,7 +47,7 @@ class AndroidBackground {
   /// no association exists yet; re-arms device-presence observation otherwise.
   /// No-op below API 26; presence observation needs API 31+.
   static Future<void> associateCompanion(String mac) async {
-    if (!Platform.isAndroid) return;
+    if (kIsWeb || !Platform.isAndroid) return;
     try {
       final res = await _ch.invokeMethod<String>('associateCompanion', mac);
       debugPrint('[android-bg] companion association: $res');
@@ -59,7 +59,7 @@ class AndroidBackground {
   /// Whether the app is already exempt from battery optimizations (Doze).
   /// Returns true on iOS / errors-as-unknown default to false on Android.
   static Future<bool> isIgnoringBatteryOptimizations() async {
-    if (!Platform.isAndroid) return true;
+    if (kIsWeb || !Platform.isAndroid) return true;
     try {
       return await _ch.invokeMethod<bool>('isIgnoringBatteryOptimizations') ==
           true;
@@ -71,7 +71,7 @@ class AndroidBackground {
 
   /// Fire the system "ignore battery optimizations?" dialog for this app.
   static Future<void> requestIgnoreBatteryOptimizations() async {
-    if (!Platform.isAndroid) return;
+    if (kIsWeb || !Platform.isAndroid) return;
     try {
       await _ch.invokeMethod('requestIgnoreBatteryOptimizations');
     } catch (e) {
@@ -96,7 +96,7 @@ class AndroidBackground {
 
   /// The device manufacturer (lowercased, e.g. "xiaomi"), or null on iOS/error.
   static Future<String?> manufacturerHint() async {
-    if (!Platform.isAndroid) return null;
+    if (kIsWeb || !Platform.isAndroid) return null;
     try {
       return await _ch.invokeMethod<String>('manufacturerHint');
     } catch (e) {
@@ -112,7 +112,7 @@ class AndroidBackground {
   /// on iOS, on API <28, or on error (fails closed — never over-claims
   /// restriction).
   static Future<bool> isBackgroundRestricted() async {
-    if (!Platform.isAndroid) return false;
+    if (kIsWeb || !Platform.isAndroid) return false;
     try {
       return await _ch.invokeMethod<bool>('isBackgroundRestricted') == true;
     } catch (e) {
@@ -142,9 +142,11 @@ class AndroidBackground {
   /// settings page if no OEM-specific screen exists on this device, so the
   /// call always lands the user somewhere useful. No-op on iOS.
   static Future<void> openOemAutostartSettings() async {
-    if (!Platform.isAndroid) return;
+    if (kIsWeb || !Platform.isAndroid) return;
     try {
-      final outcome = await _ch.invokeMethod<String>('openOemAutostartSettings');
+      final outcome = await _ch.invokeMethod<String>(
+        'openOemAutostartSettings',
+      );
       debugPrint('[android-bg] OEM autostart settings: $outcome');
     } catch (e) {
       debugPrint('[android-bg] OEM autostart settings failed: $e');

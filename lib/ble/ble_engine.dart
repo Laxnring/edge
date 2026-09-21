@@ -117,10 +117,10 @@ const String kWhoopMemberUuid16 = 'fd4b';
 /// must be its own entry: filtering only on the 128-bit vendor UUID misses a
 /// band that advertised the 2-byte form.
 List<Guid> whoopScanServiceUuids() => [
-      Guid(GattProfile.gen4.service),
-      Guid(GattProfile.gen5.service),
-      Guid(kWhoopMemberUuid16),
-    ];
+  Guid(GattProfile.gen4.service),
+  Guid(GattProfile.gen5.service),
+  Guid(kWhoopMemberUuid16),
+];
 
 /// True when a scan result is a WHOOP strap of either generation.
 ///
@@ -140,7 +140,6 @@ bool advertisementLooksLikeWhoop({
   }
   return false;
 }
-
 
 /// Map a decoded gen5 historical record onto the band-agnostic `Sample` type,
 /// or null when this record kind has no `Sample` equivalent (yet).
@@ -391,8 +390,7 @@ int burstPacketShortfall({
   required int expectedPacketCount,
   required int receivedTrafficCount,
   int droppedThisBurst = 0,
-}) =>
-    expectedPacketCount - (receivedTrafficCount + droppedThisBurst);
+}) => expectedPacketCount - (receivedTrafficCount + droppedThisBurst);
 
 /// Fired for every LIVE high-rate frame (0x28/0x2B/0x33). These are EPHEMERAL —
 /// they are NOT persisted to raw_records (that bloated storage ~50x and stalled
@@ -546,12 +544,16 @@ class _Session {
     // A notify-only sensor has no envelope to reassemble and no command
     // characteristic to write. It reaches the phone through `hrs_link.dart`,
     // never through this engine — see the registry header.
-    assert(w != null, 'the offload engine only drives framed bands, not ${e.id}');
+    assert(
+      w != null,
+      'the offload engine only drives framed bands, not ${e.id}',
+    );
     entry = e;
     asm['cmd_from'] = FrameReassembler(profile: w!);
     asm['events'] = FrameReassembler(profile: w);
     asm['data'] = FrameReassembler(profile: w);
   }
+
   final List<StreamSubscription> subs = [];
   Timer? heartbeat;
   // Session-owned timers; a disconnect cancels them.
@@ -573,6 +575,7 @@ class _Session {
   // initial `disconnected` that flutter_blue_plus replays on listen.
   bool sawConnected = false;
   bool intentionalClose = false;
+
   /// Whether the doc-01 charging follow-up (GET_BATTERY_PACK_INFO) has already
   /// been launched for THIS session. Session-scoped so a second bootstrap on
   /// the same link cannot start a second retry loop against the same band.
@@ -749,13 +752,13 @@ class _FbpGattOps implements GattBootstrapOps {
   _FbpGattOps(this._engine, this._device, this._session);
 
   @override
-  bool get bondingApplies => Platform.isAndroid;
+  bool get bondingApplies => !kIsWeb && Platform.isAndroid;
 
   @override
   Future<void> preferLe2mPhy() async {
     // "when Android supports it" — the request is Android-only
     // (flutter_blue_plus throws androidOnly elsewhere); iOS never asks.
-    if (!Platform.isAndroid) return;
+    if (kIsWeb || !Platform.isAndroid) return;
     await _device.setPreferredPhy(
       txPhy: Phy.le2m.mask,
       rxPhy: Phy.le2m.mask,
@@ -992,16 +995,20 @@ class BleEngine {
         try {
           await other!.disconnect().timeout(const Duration(seconds: 10));
         } on TimeoutException {
-          _log('preempted engine teardown timed out after 10s — proceeding '
-              'with the foreground connect anyway.');
+          _log(
+            'preempted engine teardown timed out after 10s — proceeding '
+            'with the foreground connect anyway.',
+          );
         } catch (e) {
           _log('preempted engine teardown failed ($e) — proceeding.');
         }
         break;
       case BandClaimDecision.claim:
         if (incumbentPresent) {
-          _log('taking over a STALE band claim (the previous owner has no '
-              'live link).');
+          _log(
+            'taking over a STALE band claim (the previous owner has no '
+            'live link).',
+          );
         }
         break;
     }
@@ -1136,16 +1143,21 @@ class BleEngine {
     // link, or the window ends, then hand back false so the caller's loop
     // re-enters and arms against a live adapter.
     try {
-      final adapter = await FlutterBluePlus.adapterState.first
-          .timeout(const Duration(seconds: 5));
+      final adapter = await FlutterBluePlus.adapterState.first.timeout(
+        const Duration(seconds: 5),
+      );
       if (adapter != BluetoothAdapterState.on) {
-        _log('OS autoConnect: adapter is ${adapter.name} — waiting for it to '
-            'come back (event-driven, max ${wait.inMinutes} min) instead of '
-            'arming a connect that cannot succeed.');
+        _log(
+          'OS autoConnect: adapter is ${adapter.name} — waiting for it to '
+          'come back (event-driven, max ${wait.inMinutes} min) instead of '
+          'arming a connect that cannot succeed.',
+        );
         await _waitForAdapterOn(wait: wait, keepWaiting: keepWaiting);
         return false;
       }
-    } catch (_) {/* adapter state unavailable — fall through to the arm */}
+    } catch (_) {
+      /* adapter state unavailable — fall through to the arm */
+    }
     try {
       // Arm under the op lock so it can't overlap a connect/disconnect.
       await _locked(() => device.connect(autoConnect: true, mtu: null));
@@ -1158,13 +1170,17 @@ class BleEngine {
       // adapter-state gate above didn't catch.
       _autoConnectArmFailures++;
       final delay = reconnectPolicy.delayFor(_autoConnectArmFailures);
-      _log('autoConnect arm failed (attempt $_autoConnectArmFailures): $e — '
-          'backing off ${delay.inSeconds}s.');
+      _log(
+        'autoConnect arm failed (attempt $_autoConnectArmFailures): $e — '
+        'backing off ${delay.inSeconds}s.',
+      );
       await Future.delayed(delay);
       return false;
     }
-    _log('OS autoConnect armed for $remoteId — waiting (max '
-        '${wait.inMinutes} min) for the band to reappear.');
+    _log(
+      'OS autoConnect armed for $remoteId — waiting (max '
+      '${wait.inMinutes} min) for the band to reappear.',
+    );
     final done = Completer<bool>();
     final sub = device.connectionState.listen((s) {
       if (s == BluetoothConnectionState.connected && !done.isCompleted) {
@@ -1274,10 +1290,10 @@ class BleEngine {
   /// and that `sendInit` clears it again.
   @visibleForTesting
   LinkPriority linkPriorityForCurrentState() => desiredLinkPriority(
-        offloadActive: _offloadActive || _connectSetup,
-        background: _backgrounded,
-        hasLiveConsumer: _liveEnabled && !_liveHrOnly,
-      );
+    offloadActive: _offloadActive || _connectSetup,
+    background: _backgrounded,
+    hasLiveConsumer: _liveEnabled && !_liveHrOnly,
+  );
 
   /// The last hop: the policy's [LinkPriority] as the radio's own enum.
   ///
@@ -1406,7 +1422,7 @@ class BleEngine {
   Future<String?> Function(String remoteId)? debugNativeNameReader;
 
   bool get _nameGateApplies =>
-      debugNativeNameReader != null || Platform.isAndroid;
+      debugNativeNameReader != null || (!kIsWeb && Platform.isAndroid);
 
   Future<String?> _nativeName(String remoteId) =>
       (debugNativeNameReader ?? AndroidNativeName.of)(remoteId);
@@ -1515,7 +1531,7 @@ class BleEngine {
     // before READY (no requestConnectionPriority was
     // found in the official data path).
     debugOnPriorityRequest?.call();
-    if (!Platform.isAndroid) return; // iOS picks its own interval
+    if (kIsWeb || !Platform.isAndroid) return; // iOS picks its own interval
     if (_priorityInFlight) {
       // Someone is mid-request; make them re-evaluate when they land rather
       // than issuing a competing one.
@@ -1676,6 +1692,7 @@ class BleEngine {
     onState(state);
     return false;
   }
+
   // Real per-chunk failure tracking (see ChunkFailureLedger doc) — persists
   // across reconnects like marginal-radio/post-bond-loop/bond-give-up, since
   // the whole point is catching the SAME token failing across sessions.
@@ -1693,6 +1710,7 @@ class BleEngine {
   // understand (gen5 only — gen4 has no revision byte). NOT corruption: a
   // non-zero count means the strap's firmware moved the header layout.
   int _frameRevRejectsTotal = 0;
+
   /// Bounded "ask the band to re-send a short burst" budget (see P-03 / the
   /// class doc — an unconditional FAIL here wedged sync forever).
 
@@ -1742,6 +1760,7 @@ class BleEngine {
   // history offload is DEFERRED (not drained-and-trimmed) until the clocks agree.
   // See ClockPolicy.phoneClockSuspect and _startHistoricalRefresh.
   bool _phoneClockSuspect = false;
+
   /// MONOTONIC seconds ([_monotonicSecs]) at which the suspicion started — not a
   /// wall `DateTime`. The whole point of this state is that the wall clock is
   /// not trusted: timing the grace window off `DateTime.now()` lets the very
@@ -1750,14 +1769,18 @@ class BleEngine {
   /// permission to drain-and-trim under a clock we still don't trust.
   double? _phoneClockSuspectSince;
   bool get historyPausedForClock => _deferForClock;
+
   /// Defer history only while the disagreement is still young. A slow phone
   /// re-syncs over NTP in minutes; one that persists past the grace window is a
   /// strap RTC running fast, and deferring forever would stall sync for good.
   bool get _deferForClock =>
       _phoneClockSuspect &&
       !ClockPolicy.suspectGraceExpired(
-          _phoneClockSuspectSince, _monotonicSecs());
-  int _clockPausedOffloads = 0; // diagnostics: offloads deferred for this reason
+        _phoneClockSuspectSince,
+        _monotonicSecs(),
+      );
+  int _clockPausedOffloads =
+      0; // diagnostics: offloads deferred for this reason
   /// Request/response correlation for every command this engine awaits
   ///. Replaces the two ad-hoc one-shot completers this file used to
   /// carry for HELLO and GET_CLOCK, which keyed off "a reply of roughly the
@@ -1855,7 +1878,8 @@ class BleEngine {
   // rather than only as a single overwritten sync_ledger row. Pure
   // observability — does NOT gate or retry anything.
   int _burstMismatchTotal = 0; // across the engine's lifetime
-  int _burstMismatchStreak = 0; // consecutive mismatched bursts, reset by connect + by a clean burst
+  int _burstMismatchStreak =
+      0; // consecutive mismatched bursts, reset by connect + by a clean burst
   // Per-revision packet accounting for the historical drain (gap detection +
   // honest per-version counts surfaced to the debug screens).
   final Map<int, int> _historicalVersionCounts = <int, int>{};
@@ -1951,7 +1975,8 @@ class BleEngine {
     if (_deriveTimer != null) return;
     final fp = _firstPending;
     if (fp == null) return;
-    final d = delay ??
+    final d =
+        delay ??
         deriveDebouncer.nextCheckDelay(
           sinceLastRecord: DateTime.now().difference(_lastStored),
           sinceFirstPending: DateTime.now().difference(fp),
@@ -2137,26 +2162,31 @@ class BleEngine {
   /// its fix. See [bandStatusFor]; every flag it reads is set by a detector in
   /// this file.
   BandStatus get bandStatus => bandStatusFor(
-        connection: state.connection,
-        blocker: _blocker,
-        autoReconnectPaused: state.autoReconnectPaused,
-        needsRepairGuide: state.needsRepairGuide,
-        syncChunkQuarantined: state.syncChunkQuarantined,
-        strapNeedsReboot: state.strapNeedsReboot,
-        syncClockLost: state.syncClockLost,
-        bondRefusals: state.bondRefusals,
-      );
+    connection: state.connection,
+    blocker: _blocker,
+    autoReconnectPaused: state.autoReconnectPaused,
+    needsRepairGuide: state.needsRepairGuide,
+    syncChunkQuarantined: state.syncChunkQuarantined,
+    strapNeedsReboot: state.strapNeedsReboot,
+    syncClockLost: state.syncClockLost,
+    bondRefusals: state.bondRefusals,
+  );
 
   /// Read the adapter state without hanging: `unknown` is the pre-init value and
   /// never a verdict, so wait past it, but never longer than [_blockerProbe].
   static const Duration _blockerProbe = Duration(seconds: 2);
 
   Future<BleBlocker?> _detectBlocker() async {
+    // On Chrome, attempt the browser's user-initiated picker. `getAvailability`
+    // can be false because of browser policy even with a working Windows radio.
+    if (kIsWeb) return null;
     try {
       final s = await FlutterBluePlus.adapterState
           .firstWhere((s) => s != BluetoothAdapterState.unknown)
-          .timeout(_blockerProbe,
-              onTimeout: () => BluetoothAdapterState.unknown);
+          .timeout(
+            _blockerProbe,
+            onTimeout: () => BluetoothAdapterState.unknown,
+          );
       return classifyBleBlocker(adapterState: s.name);
     } catch (e) {
       return classifyBleBlocker(error: e);
@@ -2197,8 +2227,10 @@ class BleEngine {
   // ── connect ────────────────────────────────────────────────────────────────────
   /// Idempotent connect. Serialised through [_opLock] so it can never overlap
   /// another connect/disconnect. Returns true on a fully-ready link.
-  Future<bool> connect(BluetoothDevice device, {String? generationHint}) =>
-      _locked(() async {
+  Future<bool> connect(
+    BluetoothDevice device, {
+    String? generationHint,
+  }) => _locked(() async {
     // Already connected to this exact peripheral and ready → no-op success.
     if (_session != null &&
         _session!.connected &&
@@ -2243,7 +2275,10 @@ class BleEngine {
     _setPhase(BleConnState.idle);
   }
 
-  Future<bool> _doConnect(BluetoothDevice device, {String? generationHint}) async {
+  Future<bool> _doConnect(
+    BluetoothDevice device, {
+    String? generationHint,
+  }) async {
     state.address = device.remoteId.str;
     _setPhase(BleConnState.connecting);
     final session = _Session(device);
@@ -2318,7 +2353,7 @@ class BleEngine {
       // Bond. On Android we explicitly createBond (the strap gates commands behind
       // encryption — without a bond the ACK/commands are silently dropped). On iOS
       // bonding happens implicitly on the first write-with-response.
-      if (Platform.isAndroid) {
+      if (!kIsWeb && Platform.isAndroid) {
         try {
           await device.createBond();
           _log('Bonded (or already bonded).');
@@ -2334,9 +2369,11 @@ class BleEngine {
           // silently dropped, no INIT flood, "connected but nothing happens").
           // Log loudly and surface the re-pair diagnostic on engine state so
           // the UI can point the user at the fix instead of a dead session.
-          _log('BOND FAILED: $e — encrypted commands will be silently dropped '
-              'by the band. Remove the bond in system Bluetooth settings and '
-              're-pair.');
+          _log(
+            'BOND FAILED: $e — encrypted commands will be silently dropped '
+            'by the band. Remove the bond in system Bluetooth settings and '
+            're-pair.',
+          );
           state.needsRepairGuide = true;
           state.bondRefusals++;
           // After a run of consecutive refusals, stop the auto-reconnect loop
@@ -2345,8 +2382,10 @@ class BleEngine {
           // user connect still runs createBond, so a successful re-pair recovers.
           if (_bondGiveUp.bondRefused()) {
             state.autoReconnectPaused = true;
-            _log('[RECONNECT] bond-refusal give-up (${_bondGiveUp.consecutive}) '
-                '— pausing auto-reconnect; re-pair required.');
+            _log(
+              '[RECONNECT] bond-refusal give-up (${_bondGiveUp.consecutive}) '
+              '— pausing auto-reconnect; re-pair required.',
+            );
           }
           onState(state);
         }
@@ -2461,8 +2500,9 @@ class BleEngine {
       _bondTime = DateTime.now();
       // Fresh record gate, seeded from the durable high-water so the stuck/
       // continuation detectors are correct on the first offload after a restart.
-      _recordGate =
-          RecordGate(frontierTs: (await cursorReader?.call('rec_ts_hw')) ?? 0);
+      _recordGate = RecordGate(
+        frontierTs: (await cursorReader?.call('rec_ts_hw')) ?? 0,
+      );
       // The gate's drop counter restarts at 0, so its burst baseline must too.
       // Left behind, a HISTORY_END arriving on connection N>1 before that
       // connection's first HISTORY_START computed a NEGATIVE droppedThisBurst
@@ -2539,8 +2579,10 @@ class BleEngine {
       // five-failure bond reset.
       _log('Connected + subscribed — listening (history + live).');
       if (_helloFailures > 0) {
-        _log('[HELLO gen5] bootstrap completed — clearing '
-            '$_helloFailures accumulated hello failure(s) at READY.');
+        _log(
+          '[HELLO gen5] bootstrap completed — clearing '
+          '$_helloFailures accumulated hello failure(s) at READY.',
+        );
         _helloFailures = 0;
       }
       _setPhase(BleConnState.listening);
@@ -2591,8 +2633,10 @@ class BleEngine {
     // the task state a replacement session now owns, run INIT against a dead
     // link, or report the connect as successful.
     if (_sessionIsStale(session)) {
-      _log('[SYNC] INIT drain abandoned — the link died while waiting for '
-          'the previous history task to unwind.');
+      _log(
+        '[SYNC] INIT drain abandoned — the link died while waiting for '
+        'the previous history task to unwind.',
+      );
       return false;
     }
     // Leftovers of a previous session's task (queued frames, parked
@@ -2624,8 +2668,10 @@ class BleEngine {
     // session. And whichever way INIT went, a stale continuation must not
     // touch the rollback state its replacement now owns.
     if (_sessionIsStale(session)) {
-      _log('[SYNC] INIT drain abandoned — the link died under the INIT '
-          'writes; not reporting connect success for a dead session.');
+      _log(
+        '[SYNC] INIT drain abandoned — the link died under the INIT '
+        'writes; not reporting connect success for a dead session.',
+      );
       return false;
     }
     if (!initOk) {
@@ -2678,11 +2724,15 @@ class BleEngine {
     try {
       try {
         await gatt.preferLe2mPhy();
-        _log('[BOOT gen5] LE 2M PHY preference requested (a preference — not '
-            'proof the physical link changed PHY).');
+        _log(
+          '[BOOT gen5] LE 2M PHY preference requested (a preference — not '
+          'proof the physical link changed PHY).',
+        );
       } catch (e) {
-        _log('[BOOT gen5] LE 2M PHY preference failed: $e — non-fatal; the '
-            'link stays on its current PHY.');
+        _log(
+          '[BOOT gen5] LE 2M PHY preference failed: $e — non-fatal; the '
+          'link stays on its current PHY.',
+        );
       }
       if (!session.connected || _session != session) {
         _log('connect: link dropped before discovery.');
@@ -2692,8 +2742,10 @@ class BleEngine {
       _setPhase(BleConnState.discovering);
       final entry = await gatt.discoverAndValidate();
       if (entry == null) {
-        _log('[BOOT gen5] required band service or characteristic missing — '
-            'connection failed.');
+        _log(
+          '[BOOT gen5] required band service or characteristic missing — '
+          'connection failed.',
+        );
         await _failConnect();
         return _Gen5ConnectOutcome.failed;
       }
@@ -2738,8 +2790,10 @@ class BleEngine {
         try {
           alreadyBonded = await gatt.isBonded().timeout(_bondStateTimeout);
         } catch (e) {
-          _log('[BOOT gen5] bond-state read failed or timed out ($e) — '
-              'bootstrap stops here; NOT counted as a bond refusal.');
+          _log(
+            '[BOOT gen5] bond-state read failed or timed out ($e) — '
+            'bootstrap stops here; NOT counted as a bond refusal.',
+          );
           await _failConnect();
           return _Gen5ConnectOutcome.failed;
         }
@@ -2757,9 +2811,11 @@ class BleEngine {
           state.bondRefusals = 0;
           state.autoReconnectPaused = false;
         } catch (e) {
-          _log('BOND FAILED: $e — bootstrap stops here (no subscriptions, no '
-              'HELLO, no READY). Remove the bond in system Bluetooth settings '
-              'and re-pair.');
+          _log(
+            'BOND FAILED: $e — bootstrap stops here (no subscriptions, no '
+            'HELLO, no READY). Remove the bond in system Bluetooth settings '
+            'and re-pair.',
+          );
           state.needsRepairGuide = true;
           state.bondRefusals++;
           // After a run of consecutive refusals, stop the auto-reconnect loop
@@ -2769,8 +2825,10 @@ class BleEngine {
           // recovers.
           if (_bondGiveUp.bondRefused()) {
             state.autoReconnectPaused = true;
-            _log('[RECONNECT] bond-refusal give-up (${_bondGiveUp.consecutive}) '
-                '— pausing auto-reconnect; re-pair required.');
+            _log(
+              '[RECONNECT] bond-refusal give-up (${_bondGiveUp.consecutive}) '
+              '— pausing auto-reconnect; re-pair required.',
+            );
           }
           onState(state);
           await _failConnect();
@@ -2809,8 +2867,10 @@ class BleEngine {
           await gatt.subscribe(role);
           return true;
         } catch (e) {
-          _log('[BOOT gen5] required notification registration failed '
-              '($role): $e — connection failed.');
+          _log(
+            '[BOOT gen5] required notification registration failed '
+            '($role): $e — connection failed.',
+          );
           await _failConnect();
           return false;
         }
@@ -2820,11 +2880,15 @@ class BleEngine {
         return _Gen5ConnectOutcome.failed;
       }
       if (await gatt.subscribeOptionalMemfault()) {
-        _log('[BOOT gen5] optional Memfault (0007) registered — collected as '
-            'diagnostics only.');
+        _log(
+          '[BOOT gen5] optional Memfault (0007) registered — collected as '
+          'diagnostics only.',
+        );
       } else {
-        _log('[BOOT gen5] optional Memfault (0007) absent or not registered — '
-            'not required; setup continues.');
+        _log(
+          '[BOOT gen5] optional Memfault (0007) absent or not registered — '
+          'not required; setup continues.',
+        );
       }
       if (!await requiredRegistration('data')) {
         return _Gen5ConnectOutcome.failed;
@@ -2919,8 +2983,10 @@ class BleEngine {
         return false;
       }
       if (!helloOk) {
-        _log('[HELLO gen5] hello exchange failed — hello is mandatory; '
-            'connection failed.');
+        _log(
+          '[HELLO gen5] hello exchange failed — hello is mandatory; '
+          'connection failed.',
+        );
         await _failConnect();
         return false;
       }
@@ -2930,8 +2996,10 @@ class BleEngine {
       // Its await completes before READY; its result is not a gate.
       await _readAdvertisingNameGen5(session);
       if (_session != session || !session.connected) {
-        _log('link dropped during the advertising-name read — abandoning '
-            'setup.');
+        _log(
+          'link dropped during the advertising-name read — abandoning '
+          'setup.',
+        );
         if (identical(_session, session)) await _failConnect();
         return false;
       }
@@ -3002,8 +3070,10 @@ class BleEngine {
         return false;
       }
       if (name == null) {
-        _log('[BOOT gen5] Android reports no name for this device — '
-            'readiness requires a non-null native name; connection failed.');
+        _log(
+          '[BOOT gen5] Android reports no name for this device — '
+          'readiness requires a non-null native name; connection failed.',
+        );
         await _failConnect();
         return false;
       }
@@ -3012,11 +3082,15 @@ class BleEngine {
     // Family refinement: a recognized discriminator refines the stored type;
     // an unrecognized/null mapping is NOT by itself a rejection.
     if (hello.isWhoop5) {
-      _log('[BOOT gen5] family discriminator ${hello.opticalDiscriminator} '
-          'confirms WHOOP 5.0.');
+      _log(
+        '[BOOT gen5] family discriminator ${hello.opticalDiscriminator} '
+        'confirms WHOOP 5.0.',
+      );
     } else {
-      _log('[BOOT gen5] family discriminator ${hello.opticalDiscriminator} '
-          'maps to no known family — type stays gen5 (not a rejection).');
+      _log(
+        '[BOOT gen5] family discriminator ${hello.opticalDiscriminator} '
+        'maps to no known family — type stays gen5 (not a rejection).',
+      );
     }
     // Identity — ENFORCED: serial and CPU must each FULLY match
     // [A-Za-z0-9]+; empty and partial matches fail. Evaluated by
@@ -3031,8 +3105,10 @@ class BleEngine {
     }
     if (id.eepromFailureSignal) {
       // Passes the alphanumeric gate — a diagnostic, never a rejection.
-      _log('[HELLO gen5] serial is all zeros — the strap is reporting an '
-          'EEPROM failure. Not a reject; the band stays usable.');
+      _log(
+        '[HELLO gen5] serial is all zeros — the strap is reporting an '
+        'EEPROM failure. Not a reject; the band stays usable.',
+      );
     }
     return true;
   }
@@ -3069,18 +3145,21 @@ class BleEngine {
         _absorbClockEpoch(hello.tsSeconds);
         final helloMs =
             hello.tsSeconds * 1000 + (hello.tsSubseconds * 1000) ~/ 32768;
-        final deltaMs =
-            (DateTime.now().millisecondsSinceEpoch - helloMs).abs();
+        final deltaMs = (DateTime.now().millisecondsSinceEpoch - helloMs).abs();
         if (!BootstrapClockGate.needsCorrectionMs(deltaMs)) {
-          _log('[CLOCK] in sync (delta ${deltaMs}ms, tolerance '
-              '${BootstrapClockGate.toleranceSeconds}s) — no correction '
-              'needed; no SET_CLOCK written.');
+          _log(
+            '[CLOCK] in sync (delta ${deltaMs}ms, tolerance '
+            '${BootstrapClockGate.toleranceSeconds}s) — no correction '
+            'needed; no SET_CLOCK written.',
+          );
           return true;
         }
       } else {
-        _log('[CLOCK] hello revision ${hello.helloRevision} is not the '
-            'revision-1 layout these offsets read — its timestamp is neither '
-            'trusted nor correlated; correcting unconditionally.');
+        _log(
+          '[CLOCK] hello revision ${hello.helloRevision} is not the '
+          'revision-1 layout these offsets read — its timestamp is neither '
+          'trusted nor correlated; correcting unconditionally.',
+        );
       }
       // The contract is UNCONDITIONAL at ≥2 s: one awaited SET_CLOCK with a
       // newly sampled phone time — even for a strap reading days ahead of the
@@ -3096,8 +3175,10 @@ class BleEngine {
         return false;
       }
       if (!ok) {
-        _log('[CLOCK] SET_CLOCK failed to write or went unanswered — clock '
-            'synchronization is a readiness requirement; connection failed.');
+        _log(
+          '[CLOCK] SET_CLOCK failed to write or went unanswered — clock '
+          'synchronization is a readiness requirement; connection failed.',
+        );
         await _failConnect();
         return false;
       }
@@ -3129,8 +3210,10 @@ class BleEngine {
       0,
     ]);
     if (!out.written) return false;
-    _log('SET_CLOCK (gen5 bootstrap) → sec=$sec subsec=$subsec — awaiting '
-        'the correlated response.');
+    _log(
+      'SET_CLOCK (gen5 bootstrap) → sec=$sec subsec=$subsec — awaiting '
+      'the correlated response.',
+    );
     final resp = await out.response;
     if (resp != null && resp.success) {
       // The strap just took our wall time, so correlate at drift 0 without a
@@ -3151,8 +3234,10 @@ class BleEngine {
       if (_phoneClockSuspect) {
         _phoneClockSuspect = false;
         _phoneClockSuspectSince = null;
-        _log('[CLOCK] SET_CLOCK accepted — clearing the phone-clock-suspect '
-            'verdict from the pre-correction reading; history may drain.');
+        _log(
+          '[CLOCK] SET_CLOCK accepted — clearing the phone-clock-suspect '
+          'verdict from the pre-correction reading; history may drain.',
+        );
       }
     }
     return resp != null;
@@ -3179,8 +3264,9 @@ class BleEngine {
   /// what it pins is the TRUE band, and the legacy route it falls back to
   /// re-discovers and re-pins the same entry before using it.
   Future<_DiscoveredBand?> _discoverBand(BluetoothDevice device) async {
-    final services =
-        await device.discoverServices().timeout(_serviceDiscoveryTimeout);
+    final services = await device.discoverServices().timeout(
+      _serviceDiscoveryTimeout,
+    );
     // Pin the band from whichever registered service the peripheral exposes.
     // This drives the frame header/CRC, command envelope, ACK, and record
     // decode for the session.
@@ -3204,8 +3290,10 @@ class BleEngine {
       if (svc != null) break;
     }
     if (svc == null || entry == null) {
-      _log('No known band service found on device (looked for: '
-          '${kFramedBands.map((e) => "${e.servicePrefix}xxxx").join(", ")}).');
+      _log(
+        'No known band service found on device (looked for: '
+        '${kFramedBands.map((e) => "${e.servicePrefix}xxxx").join(", ")}).',
+      );
       return null;
     }
     BluetoothCharacteristic? find(String uuid) {
@@ -3226,8 +3314,10 @@ class BleEngine {
         if (find(u) == null) u.substring(0, 8),
     ];
     if (missing.isNotEmpty) {
-      _log('${entry.label}: missing required characteristic(s) '
-          '${missing.join(", ")}.');
+      _log(
+        '${entry.label}: missing required characteristic(s) '
+        '${missing.join(", ")}.',
+      );
       return null;
     }
     // Non-null: `entry` came out of [kFramedBands].
@@ -3279,22 +3369,27 @@ class BleEngine {
   /// the state absorber.
   Future<void> _readAdvertisingNameGen5(_Session session) async {
     if (!session.band.isGen5) return;
-    final out = await _sendAwaited(
-      Cmd.getCustomAdvertisingName,
-      const <int>[revision1],
-    );
+    final out = await _sendAwaited(Cmd.getCustomAdvertisingName, const <int>[
+      revision1,
+    ]);
     if (!out.written) {
-      _log('[NAME] GET_ADVERTISING_NAME was never written — not a readiness '
-          'gate; setup continues.');
+      _log(
+        '[NAME] GET_ADVERTISING_NAME was never written — not a readiness '
+        'gate; setup continues.',
+      );
       return;
     }
     final r = await out.response;
     if (r == null) {
-      _log('[NAME] GET_ADVERTISING_NAME went unanswered — not a readiness '
-          'gate.');
+      _log(
+        '[NAME] GET_ADVERTISING_NAME went unanswered — not a readiness '
+        'gate.',
+      );
     } else if (!r.success) {
-      _log('[NAME] GET_ADVERTISING_NAME status=${r.status} — not a readiness '
-          'gate.');
+      _log(
+        '[NAME] GET_ADVERTISING_NAME status=${r.status} — not a readiness '
+        'gate.',
+      );
     }
   }
 
@@ -3334,7 +3429,7 @@ class BleEngine {
       );
       final info = out.written
           ? (await out.response)?.fields['battery_pack_info']
-              as BatteryPackInfoResponse?
+                as BatteryPackInfoResponse?
           : null;
       if (info != null &&
           BatteryPackInfoGate.usable(
@@ -3343,10 +3438,12 @@ class BleEngine {
           )) {
         _batteryPack = info;
         _batteryPackTs = _wallSecs().round();
-        _log('[PACK] battery pack identified on attempt $attempt/'
-            '$kBatteryPackInfoAttempts: address=${info.identifier} '
-            'name="${info.name}" attached=${info.attached} '
-            'type=${info.batteryPackType?.name ?? info.batteryPackTypeRaw}.');
+        _log(
+          '[PACK] battery pack identified on attempt $attempt/'
+          '$kBatteryPackInfoAttempts: address=${info.identifier} '
+          'name="${info.name}" attached=${info.attached} '
+          'type=${info.batteryPackType?.name ?? info.batteryPackTypeRaw}.',
+        );
         return;
       }
       // "every unusable attempt is followed by the 5-second delay,
@@ -3354,9 +3451,11 @@ class BleEngine {
       // sitting on, so an early all-zero address is the expected reply.
       await Future.delayed(kBatteryPackInfoRetryDelay);
     }
-    _log('[PACK] no usable GET_BATTERY_PACK_INFO reply after '
-        '$kBatteryPackInfoAttempts attempts — nothing changes; the band stays '
-        'READY.');
+    _log(
+      '[PACK] no usable GET_BATTERY_PACK_INFO reply after '
+      '$kBatteryPackInfoAttempts attempts — nothing changes; the band stays '
+      'READY.',
+    );
   }
 
   // ── keep-alive + periodic backfill ──────────────────────────────────────────
@@ -3415,7 +3514,8 @@ class BleEngine {
       // only in foreground full-live (bounded by screen-on time), and a
       // flowing HR stream is no proof the IMU stream is alive.
       final hrAtMs = state.liveHrAt;
-      final hrDelivering = hrAtMs != null &&
+      final hrDelivering =
+          hrAtMs != null &&
           DateTime.now().millisecondsSinceEpoch - hrAtMs < 60 * 1000;
       if (!hrDelivering) {
         _send(Cmd.toggleRealtimeHr, const [0x01]);
@@ -3440,7 +3540,8 @@ class BleEngine {
         // kLinkFreshnessNoStreamSeconds — so force the poll well under that
         // bar (~every other 30 s tick ⇒ sinceLastRx stays ≤ ~65 s). With a
         // stream armed, the original fuse/2 threshold stands.
-        force: sinceLastRx.inSeconds >
+        force:
+            sinceLastRx.inSeconds >
             (_liveEnabled
                 ? kLivenessFuseSeconds ~/ 2
                 : kNoStreamPollSilenceSeconds),
@@ -3496,12 +3597,16 @@ class BleEngine {
     // The stamp belongs to the WRITE, so a strap that never answers does not
     // turn the poll into a five-second-per-tick retry loop.
     _lastBatteryPollAt = DateTime.now();
-    unawaited(out.response.then((r) {
-      if (r == null) {
-        _log('[BATTERY] GET_BATTERY_LEVEL went unanswered — the link produced '
-            'no inbound traffic for this poll.');
-      }
-    }));
+    unawaited(
+      out.response.then((r) {
+        if (r == null) {
+          _log(
+            '[BATTERY] GET_BATTERY_LEVEL went unanswered — the link produced '
+            'no inbound traffic for this poll.',
+          );
+        }
+      }),
+    );
   }
 
   /// Trigger a historical offload, floored by [BackfillPolicy] (manual /
@@ -3595,8 +3700,10 @@ class BleEngine {
     // the rest fall out at the already-transmitting guard: at most ONE next
     // task.
     if (_historyAbortInFlight != null || _historyMarkerInFlight != null) {
-      _log('[SYNC] refresh($reason) — waiting for the previous history '
-          'task\'s abort/handler to finish before starting a new one.');
+      _log(
+        '[SYNC] refresh($reason) — waiting for the previous history '
+        'task\'s abort/handler to finish before starting a new one.',
+      );
     }
     await _awaitHistoryLifecycleQuiescence(
       includeMarkerHandler: !fromMarkerHandler,
@@ -3833,8 +3940,10 @@ class BleEngine {
     _memfaultChunks++;
     _memfaultBytesTotal += chunk.length;
     if (_memfaultChunks == 1) {
-      _log('[MEMFAULT] strap volunteered its first crash/diagnostic '
-          'chunk (${chunk.length} B) — collected only.');
+      _log(
+        '[MEMFAULT] strap volunteered its first crash/diagnostic '
+        'chunk (${chunk.length} B) — collected only.',
+      );
     }
   }
 
@@ -4022,10 +4131,12 @@ class BleEngine {
     // bypasses are one named parameter at one reviewed call site, and
     // FORCE_TRIM (whose full-erase form is two 0xFEFEFEFE args), REBOOT and
     // POWER_CYCLE cannot leave this engine by any path.
-    final opcode =
-        allowDangerous ? null : _opcodeOfFrame(raw, session?.entry ?? kWhoopGen4);
+    final opcode = allowDangerous
+        ? null
+        : _opcodeOfFrame(raw, session?.entry ?? kWhoopGen4);
     if (opcode != null &&
-        (dangerousCmds.contains(opcode) || OpcodeSafety.isDestructive(opcode))) {
+        (dangerousCmds.contains(opcode) ||
+            OpcodeSafety.isDestructive(opcode))) {
       _log('REFUSED dangerous opcode 0x${opcode.toRadixString(16)} at _write');
       return Future.value(false);
     }
@@ -4040,7 +4151,9 @@ class BleEngine {
           return false;
         }
         if (owner != null && !identical(owner, session)) {
-          _log('write skipped: it belongs to a session that is no longer live.');
+          _log(
+            'write skipped: it belongs to a session that is no longer live.',
+          );
           return false;
         }
         final hook = debugWriteHook;
@@ -4105,8 +4218,10 @@ class BleEngine {
       if (await _write(ack, owner: session)) return true;
       failures++;
       if (!ackRetryPolicy.shouldRetry(failures)) return false;
-      _log('[SYNC] batch-ACK write failed (attempt $failures/'
-          '${ackRetryPolicy.maxAttempts}) — retrying.');
+      _log(
+        '[SYNC] batch-ACK write failed (attempt $failures/'
+        '${ackRetryPolicy.maxAttempts}) — retrying.',
+      );
       await Future.delayed(ackRetryPolicy.delayFor(failures));
       if (stale()) return false;
     }
@@ -4138,11 +4253,17 @@ class BleEngine {
   Future<bool> _send(int opcode, List<int> payload, {_Session? owner}) async {
     if (_refuseDangerousOpcode(opcode)) return false;
     final frame = buildCommand(
-        _seq.nextLive(), opcode, payload, _session?.band ?? BandProfile.gen4);
+      _seq.nextLive(),
+      opcode,
+      payload,
+      _session?.band ?? BandProfile.gen4,
+    );
     final ok = await _write(frame, owner: owner);
     if (!ok) {
-      _log('WRITE FAILED for opcode 0x${opcode.toRadixString(16)} — '
-          'command not delivered.');
+      _log(
+        'WRITE FAILED for opcode 0x${opcode.toRadixString(16)} — '
+        'command not delivered.',
+      );
     }
     return ok;
   }
@@ -4179,12 +4300,15 @@ class BleEngine {
     }
     final seq = _seq.nextLive();
     final pending = _awaiter.register(seq, opcode, timeout: timeout);
-    final frame = frameBuilder?.call(seq) ??
+    final frame =
+        frameBuilder?.call(seq) ??
         buildCommand(seq, opcode, payload, _session?.band ?? BandProfile.gen4);
     if (!await _write(frame)) {
       pending.cancel();
-      _log('WRITE FAILED for opcode 0x${opcode.toRadixString(16)} — '
-          'command not delivered.');
+      _log(
+        'WRITE FAILED for opcode 0x${opcode.toRadixString(16)} — '
+        'command not delivered.',
+      );
       return (written: false, response: pending.response);
     }
     return (written: true, response: pending.response);
@@ -4197,14 +4321,18 @@ class BleEngine {
   // right one. (_send already frames with the session's BandProfile.)
   List<int> get _offloadPayload =>
       (_session?.entry ?? kWhoopGen4).commands.offloadBody;
+
   /// IMU_SET_DATA_STREAM for the session's band. gen5 wants a leading revision
   /// byte where gen4 sends a bare on/off byte; protocol's `cmdToggleImu` owns
   /// that split. Sent the gen4 body, a gen5 strap reads the state from past the
   /// end of the body, the stream never arms, and step calibration stays at 0.
   Future<bool> _sendToggleImu(bool on) => _write(
-        cmdToggleImu(_seq.nextLive(), on,
-            profile: _session?.band ?? BandProfile.gen4),
-      );
+    cmdToggleImu(
+      _seq.nextLive(),
+      on,
+      profile: _session?.band ?? BandProfile.gen4,
+    ),
+  );
 
   Future<bool> _sendGetDataRange({_Session? owner}) =>
       _send(Cmd.getDataRange, _offloadPayload, owner: owner);
@@ -4273,8 +4401,12 @@ class BleEngine {
       return;
     }
     _log('[SYNC] HighFreq exit ($reason).');
-    await _write(cmdExitHighFreqSync(_seq.nextLive(),
-        profile: _session?.band ?? BandProfile.gen4));
+    await _write(
+      cmdExitHighFreqSync(
+        _seq.nextLive(),
+        profile: _session?.band ?? BandProfile.gen4,
+      ),
+    );
     _highFreqModeRequested = false;
     _highFreqReason = null;
     _highFreqUntil = null;
@@ -4314,8 +4446,13 @@ class BleEngine {
     // last point that knows it. Callers may override (tests / a replay that
     // knows better); null falls back to the live link, which is itself null
     // before discovery has pinned one.
-    await onCommitBatch!(raws, samples, trimTokenHex,
-        archives: archives, deviceFamily: deviceFamily ?? linkDeviceFamily);
+    await onCommitBatch!(
+      raws,
+      samples,
+      trimTokenHex,
+      archives: archives,
+      deviceFamily: deviceFamily ?? linkDeviceFamily,
+    );
     if (raws.isNotEmpty || hasArchives) _noteStored();
   }
 
@@ -4435,8 +4572,10 @@ class BleEngine {
     // `decodeFrame` above). Per-band because the value of the noise is — see
     // [BandEntry.logsConsoleOutput].
     if (entry.logsConsoleOutput && decoded.kind == 'console_log') {
-      _log('[CONSOLE gen5] idx=${decoded.fields['record_index']} '
-          'ts=${decoded.fields['ts_epoch']}: ${decoded.fields['text']}');
+      _log(
+        '[CONSOLE gen5] idx=${decoded.fields['record_index']} '
+        'ts=${decoded.fields['ts_epoch']}: ${decoded.fields['text']}',
+      );
     }
     _absorbState(decoded);
   }
@@ -4486,9 +4625,11 @@ class BleEngine {
         // this queue too, and gen5's console chatter alone could otherwise
         // keep a genuinely stalled offload alive past the timeout forever.
         // Stale-generation leftovers count for nothing here either.
-        if (batch.any((e) =>
-            e.taskGen == _historyTaskGen &&
-            e.frame.packetType == PacketType.historicalData)) {
+        if (batch.any(
+          (e) =>
+              e.taskGen == _historyTaskGen &&
+              e.frame.packetType == PacketType.historicalData,
+        )) {
           _armIdleWatchdog();
         }
         for (final entry in batch) {
@@ -4986,8 +5127,9 @@ class BleEngine {
     // is; this reads a different field.
     final pb = f['pages_behind'];
     if (pb is Map) {
-      _lastPagesBehind =
-          Map<String, dynamic>.unmodifiable(pb.cast<String, dynamic>());
+      _lastPagesBehind = Map<String, dynamic>.unmodifiable(
+        pb.cast<String, dynamic>(),
+      );
       unawaited(_recordPagesBehind(_lastPagesBehind!));
     }
     if (d.kind == 'cmd_response' && f['hello'] is HelloInfo) {
@@ -5031,9 +5173,11 @@ class BleEngine {
         state.charging = h.charging;
         state.wristOn = h.wristOn;
         onState(state);
-        _log('[HELLO gen5] serial=${h.serial} fw=${h.firmwareVersion} '
-            'battery=${h.batteryPct}% charging=${h.charging} '
-            'wrist=${h.wristOn} whoop5=${h.isWhoop5}');
+        _log(
+          '[HELLO gen5] serial=${h.serial} fw=${h.firmwareVersion} '
+          'battery=${h.batteryPct}% charging=${h.charging} '
+          'wrist=${h.wristOn} whoop5=${h.isWhoop5}',
+        );
       } else {
         // REVISION-NEUTRAL, deliberately. The line above names six fields read
         // at revision-1 offsets, and the foreground logger PERSISTS what it is
@@ -5041,10 +5185,12 @@ class BleEngine {
         // battery figure as if they were read, which is the same imputation
         // the quarantine above exists to stop. The revision and the body
         // length are the two things true at any layout.
-        _log('[HELLO gen5] revision ${h.helloRevision} is not the revision-1 '
-            'layout these offsets read (body ${h.rawHex.length ~/ 2}B) — '
-            'serial, battery, charge and wrist state are NOT published or '
-            'logged; the connection continues.');
+        _log(
+          '[HELLO gen5] revision ${h.helloRevision} is not the revision-1 '
+          'layout these offsets read (body ${h.rawHex.length ~/ 2}B) — '
+          'serial, battery, charge and wrist state are NOT published or '
+          'logged; the connection continues.',
+        );
       }
     }
     if (d.kind == 'realtime_hr') {
@@ -5078,11 +5224,14 @@ class BleEngine {
       // sequence would look like, and it is the correlation contract's
       // own "a sequence match with the wrong opcode is not a success" case.
       // Either way the await it belongs to just expires, silently, without it.
-      final nearMiss = (opcode != null && _awaiter.hasPendingOpcode(opcode)) ||
+      final nearMiss =
+          (opcode != null && _awaiter.hasPendingOpcode(opcode)) ||
           (reqSeq != null && _awaiter.hasPendingSeq(reqSeq));
       if (outcome == CommandDelivery.unmatched && nearMiss) {
-        _log('[CMD] response opcode=$opcode req_seq=$reqSeq matched no pending '
-            'command (waiting on ${_awaiter.pendingKeys}) — ignored.');
+        _log(
+          '[CMD] response opcode=$opcode req_seq=$reqSeq matched no pending '
+          'command (waiting on ${_awaiter.pendingKeys}) — ignored.',
+        );
       }
     }
   }
@@ -5133,8 +5282,10 @@ class BleEngine {
         _lastHapticsTermination =
             f['haptics_termination'] as String? ?? 'unknown';
         _lastHapticsTerminationTs = event.tsEpoch;
-        _log('[ALARM] haptics terminated: cause=$_lastHapticsTermination '
-            'code=${f['haptics_termination_code']} ts=${event.tsEpoch}');
+        _log(
+          '[ALARM] haptics terminated: cause=$_lastHapticsTermination '
+          'code=${f['haptics_termination_code']} ts=${event.tsEpoch}',
+        );
         return;
       case EventId.highFreqSyncPrompt:
         _log(
@@ -5202,9 +5353,11 @@ class BleEngine {
     // (HISTORY_COMPLETE included), so nothing else would ever resolve it
     // short of the 60 s idle window.
     _drain?.onTaskTerminal();
-    _log('[SYNC] history task terminal ($reason) — sending one best-effort '
-        'abort; the band keeps its checkpoint and a later task resumes from '
-        'it.');
+    _log(
+      '[SYNC] history task terminal ($reason) — sending one best-effort '
+      'abort; the band keeps its checkpoint and a later task resumes from '
+      'it.',
+    );
     final boundary = _writeHistoryAbort(session, reason: reason);
     _historyAbortInFlight = boundary;
     try {
@@ -5229,7 +5382,8 @@ class BleEngine {
     bool includeMarkerHandler = true,
   }) async {
     while (true) {
-      final pending = _historyAbortInFlight ??
+      final pending =
+          _historyAbortInFlight ??
           (includeMarkerHandler ? _historyMarkerInFlight : null);
       if (pending == null) return;
       await pending;
@@ -5249,8 +5403,10 @@ class BleEngine {
       session.band,
     );
     if (!await _write(frame, owner: session)) {
-      _log('[SYNC] best-effort history abort ($reason) was not delivered — '
-          'continuing the terminal anyway.');
+      _log(
+        '[SYNC] best-effort history abort ($reason) was not delivered — '
+        'continuing the terminal anyway.',
+      );
     }
   }
 
@@ -5285,9 +5441,11 @@ class BleEngine {
       reason: reason,
     );
     if (retriesExhausted) {
-      _log('[SYNC] abort($reason) — already retried '
-          '${session.historicalRetries} times this session; NOT re-arming. '
-          'The strap is not draining; the reconnect path takes it from here.');
+      _log(
+        '[SYNC] abort($reason) — already retried '
+        '${session.historicalRetries} times this session; NOT re-arming. '
+        'The strap is not draining; the reconnect path takes it from here.',
+      );
       return;
     }
     session.historicalRetry = Timer(
@@ -5357,13 +5515,17 @@ class BleEngine {
     try {
       final prev = await LocalDb.bandBacklog(limit: 1);
       if (prev.isNotEmpty) prevWrap = asInt(prev.first['wrap_count']);
-    } catch (_) {/* no prior snapshot — first connect since install */}
+    } catch (_) {
+      /* no prior snapshot — first connect since install */
+    }
 
     final wrapped = (prevWrap != null && wrap != null && wrap > prevWrap)
         ? wrap - prevWrap
         : 0;
-    _log('[BACKLOG] used=$used free=$free wrap=$wrap (prev=$prevWrap, '
-        '+$wrapped) written=$written/$capacity trim_page=$trimPage');
+    _log(
+      '[BACKLOG] used=$used free=$free wrap=$wrap (prev=$prevWrap, '
+      '+$wrapped) written=$written/$capacity trim_page=$trimPage',
+    );
 
     await _bestEffortLedgerWrite(
       () => LocalDb.putBandBacklog(
@@ -5410,8 +5572,10 @@ class BleEngine {
     // Store what did arrive, without the token.
     final durable = await d.commit(null);
     if (!durable) {
-      _log('[SYNC] short-count burst ALSO failed to commit — bouncing the '
-          'link so the next session retries from a clean batch.');
+      _log(
+        '[SYNC] short-count burst ALSO failed to commit — bouncing the '
+        'link so the next session retries from a clean batch.',
+      );
       if (!_sessionIsStale(session)) {
         unawaited(
           _teardownSession(intentional: false).then((_) {
@@ -5445,19 +5609,21 @@ class BleEngine {
         '${d.consecutiveValidationFailures} attempts — aborting history for '
         'this session (records are stored; the band keeps the checkpoint).',
       );
-      await _bestEffortLedgerWrite(() => LocalDb.upsertSyncLedgerEntry(
-            chunkId: 'batch:$tokenHex',
-            kind: 'historical_batch',
-            status: 'stuck',
-            lastError: 'burst_short_count_attempts_exhausted',
-            metaPatch: {
-              'batch_id': batchId,
-              'expected_burst_packets': expected,
-              'actual_burst_packets': d.currentBurstTrafficCount,
-              'dropped_this_burst': droppedThisBurst,
-              'attempts': d.consecutiveValidationFailures,
-            },
-          ));
+      await _bestEffortLedgerWrite(
+        () => LocalDb.upsertSyncLedgerEntry(
+          chunkId: 'batch:$tokenHex',
+          kind: 'historical_batch',
+          status: 'stuck',
+          lastError: 'burst_short_count_attempts_exhausted',
+          metaPatch: {
+            'batch_id': batchId,
+            'expected_burst_packets': expected,
+            'actual_burst_packets': d.currentBurstTrafficCount,
+            'dropped_this_burst': droppedThisBurst,
+            'attempts': d.consecutiveValidationFailures,
+          },
+        ),
+      );
       await _endHistoryTaskWithAbort(
         session: session,
         kind: _HpsTerminalKind.stuck,
@@ -5487,19 +5653,21 @@ class BleEngine {
         '(attempt ${d.consecutiveValidationFailures}/'
         '$kBurstValidationAttemptLimit) — ending the history task.',
       );
-      await _bestEffortLedgerWrite(() => LocalDb.upsertSyncLedgerEntry(
-            chunkId: 'batch:$tokenHex',
-            kind: 'historical_batch',
-            status: 'aborted',
-            lastError: 'failure_result_write_failed',
-            metaPatch: {
-              'batch_id': batchId,
-              'expected_burst_packets': expected,
-              'actual_burst_packets': d.currentBurstTrafficCount,
-              'dropped_this_burst': droppedThisBurst,
-              'attempts': d.consecutiveValidationFailures,
-            },
-          ));
+      await _bestEffortLedgerWrite(
+        () => LocalDb.upsertSyncLedgerEntry(
+          chunkId: 'batch:$tokenHex',
+          kind: 'historical_batch',
+          status: 'aborted',
+          lastError: 'failure_result_write_failed',
+          metaPatch: {
+            'batch_id': batchId,
+            'expected_burst_packets': expected,
+            'actual_burst_packets': d.currentBurstTrafficCount,
+            'dropped_this_burst': droppedThisBurst,
+            'attempts': d.consecutiveValidationFailures,
+          },
+        ),
+      );
       await _endHistoryTaskWithAbort(
         session: session,
         kind: _HpsTerminalKind.resultWriteFailed,
@@ -5513,19 +5681,21 @@ class BleEngine {
       '$kBurstValidationAttemptLimit) — the band re-offers this '
       'burst; nothing was trimmed.',
     );
-    await _bestEffortLedgerWrite(() => LocalDb.upsertSyncLedgerEntry(
-          chunkId: 'batch:$tokenHex',
-          kind: 'historical_batch',
-          status: 'trim_refused',
-          lastError: 'burst_short_count',
-          metaPatch: {
-            'batch_id': batchId,
-            'expected_burst_packets': expected,
-            'actual_burst_packets': d.currentBurstTrafficCount,
-            'dropped_this_burst': droppedThisBurst,
-            'attempts': d.consecutiveValidationFailures,
-          },
-        ));
+    await _bestEffortLedgerWrite(
+      () => LocalDb.upsertSyncLedgerEntry(
+        chunkId: 'batch:$tokenHex',
+        kind: 'historical_batch',
+        status: 'trim_refused',
+        lastError: 'burst_short_count',
+        metaPatch: {
+          'batch_id': batchId,
+          'expected_burst_packets': expected,
+          'actual_burst_packets': d.currentBurstTrafficCount,
+          'dropped_this_burst': droppedThisBurst,
+          'attempts': d.consecutiveValidationFailures,
+        },
+      ),
+    );
   }
 
   Future<void> _refuseHistoryEndTrim(
@@ -5560,13 +5730,15 @@ class BleEngine {
           'band cannot trim the records we dropped. It re-delivers them next '
           'offload.',
         );
-        await _bestEffortLedgerWrite(() => LocalDb.upsertSyncLedgerEntry(
-          chunkId: 'batch:$tokenHex',
-          kind: 'historical_batch',
-          status: 'trim_refused',
-          lastError: 'discarded_burst',
-          metaPatch: {'batch_id': batchId, 'records': d.records},
-        ));
+        await _bestEffortLedgerWrite(
+          () => LocalDb.upsertSyncLedgerEntry(
+            chunkId: 'batch:$tokenHex',
+            kind: 'historical_batch',
+            status: 'trim_refused',
+            lastError: 'discarded_burst',
+            metaPatch: {'batch_id': batchId, 'records': d.records},
+          ),
+        );
         return;
       case TrimAckVerdict.blockedBurstShortfall:
         // The rows we DID receive are already durable (this verdict is only
@@ -5583,13 +5755,15 @@ class BleEngine {
           'committed rows stay; the band re-delivers this chunk once and the '
           'next delivery is ACKed regardless.',
         );
-        await _bestEffortLedgerWrite(() => LocalDb.upsertSyncLedgerEntry(
-          chunkId: 'batch:$tokenHex',
-          kind: 'historical_batch',
-          status: 'trim_refused',
-          lastError: 'burst_shortfall_retry',
-          metaPatch: {'batch_id': batchId, 'records': d.records},
-        ));
+        await _bestEffortLedgerWrite(
+          () => LocalDb.upsertSyncLedgerEntry(
+            chunkId: 'batch:$tokenHex',
+            kind: 'historical_batch',
+            status: 'trim_refused',
+            lastError: 'burst_shortfall_retry',
+            metaPatch: {'batch_id': batchId, 'records': d.records},
+          ),
+        );
         return;
       case TrimAckVerdict.blockedCommitFailed:
         // THE safe-trim invariant. The transaction rolled back, so the cursor
@@ -5601,13 +5775,15 @@ class BleEngine {
           'band must keep this chunk). Records were re-buffered; bouncing the '
           'link so the next session retries the commit from a clean batch.',
         );
-        await _bestEffortLedgerWrite(() => LocalDb.upsertSyncLedgerEntry(
-          chunkId: 'batch:$tokenHex',
-          kind: 'historical_batch',
-          status: 'commit_failed',
-          lastError: 'durable_commit_failed',
-          metaPatch: {'batch_id': batchId, 'records': d.records},
-        ));
+        await _bestEffortLedgerWrite(
+          () => LocalDb.upsertSyncLedgerEntry(
+            chunkId: 'batch:$tokenHex',
+            kind: 'historical_batch',
+            status: 'commit_failed',
+            lastError: 'durable_commit_failed',
+            metaPatch: {'batch_id': batchId, 'records': d.records},
+          ),
+        );
         // Bounce rather than retry in place: a commit that failed on a large
         // batch (the observed production OOM inside commitSyncBatch) only gets
         // bigger if we keep appending to the same buffer. A reconnect drops
@@ -5615,7 +5791,9 @@ class BleEngine {
         if (!_sessionIsStale(session)) {
           unawaited(
             _teardownSession(intentional: false).then((_) {
-              _setPhase(BleConnState.idle); // caller's reconnect loop takes over
+              _setPhase(
+                BleConnState.idle,
+              ); // caller's reconnect loop takes over
             }),
           );
         }
@@ -5634,18 +5812,20 @@ class BleEngine {
           'remedies=${_noDurableProgress.remedies}). The band keeps the chunk; '
           'a SET_CLOCK/reconnect may clear a poisoned gate window.',
         );
-        await _bestEffortLedgerWrite(() => LocalDb.upsertSyncLedgerEntry(
-          chunkId: 'batch:$tokenHex',
-          kind: 'historical_batch',
-          status: 'trim_refused',
-          lastError: 'no_durable_progress',
-          metaPatch: {
-            'batch_id': batchId,
-            'records': d.records,
-            'no_durable_refuse_streak': _noDurableProgress.refusals,
-            'no_durable_remedy_cycles': _noDurableProgress.remedies,
-          },
-        ));
+        await _bestEffortLedgerWrite(
+          () => LocalDb.upsertSyncLedgerEntry(
+            chunkId: 'batch:$tokenHex',
+            kind: 'historical_batch',
+            status: 'trim_refused',
+            lastError: 'no_durable_progress',
+            metaPatch: {
+              'batch_id': batchId,
+              'records': d.records,
+              'no_durable_refuse_streak': _noDurableProgress.refusals,
+              'no_durable_remedy_cycles': _noDurableProgress.remedies,
+            },
+          ),
+        );
         if (runRemedy && !_sessionIsStale(session)) {
           _log(
             '[SYNC] no-durable trim refuses hit the remedy threshold — '
@@ -5673,7 +5853,9 @@ class BleEngine {
           try {
             await setClock();
           } catch (e) {
-            _log('[SYNC] defensive SET_CLOCK after no-durable refuse failed: $e');
+            _log(
+              '[SYNC] defensive SET_CLOCK after no-durable refuse failed: $e',
+            );
           }
           if (!_sessionIsStale(session)) {
             unawaited(
@@ -5831,7 +6013,8 @@ class BleEngine {
       // advisory-only behaviour until a gen4 capture settles it. That is the
       // whole content of [BandEntry.burstCountGateEnforced]; do not flip it.
       final gateEnforced = session.entry.burstCountGateEnforced;
-      final validated = expected == null ||
+      final validated =
+          expected == null ||
           !gateEnforced ||
           d.validateBurst(
             expectedPacketCount: expected,
@@ -5887,19 +6070,21 @@ class BleEngine {
           'traffic=${d.currentBurstTrafficCount}, '
           'breakdown=${d.currentBurstBreakdown}',
         );
-        await _bestEffortLedgerWrite(() => LocalDb.upsertSyncLedgerEntry(
-          status: 'validated_with_mismatch',
-          lastError: 'burst_packet_mismatch',
-          metaPatch: {
-            'expected_burst_packets': expected,
-            'dropped_this_burst': droppedThisBurst,
-            'historical_burst_packets': d.currentBurstHistoricalPacketCount,
-            'traffic_burst_packets': d.currentBurstTrafficCount,
-            'burst_validation_failures': d.consecutiveValidationFailures,
-            'burst_breakdown': d.currentBurstBreakdown,
-            'burst_shortfall': shortfall,
-          },
-        ));
+        await _bestEffortLedgerWrite(
+          () => LocalDb.upsertSyncLedgerEntry(
+            status: 'validated_with_mismatch',
+            lastError: 'burst_packet_mismatch',
+            metaPatch: {
+              'expected_burst_packets': expected,
+              'dropped_this_burst': droppedThisBurst,
+              'historical_burst_packets': d.currentBurstHistoricalPacketCount,
+              'traffic_burst_packets': d.currentBurstTrafficCount,
+              'burst_validation_failures': d.consecutiveValidationFailures,
+              'burst_breakdown': d.currentBurstBreakdown,
+              'burst_shortfall': shortfall,
+            },
+          ),
+        );
         await _refuseHistoryEndOnShortCount(
           d: d,
           session: session,
@@ -5923,16 +6108,18 @@ class BleEngine {
           'dropped_this_burst=$droppedThisBurst short_by=$shortfall — '
           'ACKing as always; the gen4 count semantics are unpinned.',
         );
-        await _bestEffortLedgerWrite(() => LocalDb.upsertSyncLedgerEntry(
-              status: 'validated_with_mismatch',
-              lastError: 'burst_packet_mismatch_advisory',
-              metaPatch: {
-                'expected_burst_packets': expected,
-                'dropped_this_burst': droppedThisBurst,
-                'traffic_burst_packets': d.currentBurstTrafficCount,
-                'burst_shortfall': shortfall,
-              },
-            ));
+        await _bestEffortLedgerWrite(
+          () => LocalDb.upsertSyncLedgerEntry(
+            status: 'validated_with_mismatch',
+            lastError: 'burst_packet_mismatch_advisory',
+            metaPatch: {
+              'expected_burst_packets': expected,
+              'dropped_this_burst': droppedThisBurst,
+              'traffic_burst_packets': d.currentBurstTrafficCount,
+              'burst_shortfall': shortfall,
+            },
+          ),
+        );
       } else {
         _burstMismatchStreak = 0;
       }
@@ -6053,8 +6240,11 @@ class BleEngine {
         );
         return;
       }
-      final ack = buildHistoryResultOk(_seq.nextSync(), m.token!,
-          profile: _session?.band ?? BandProfile.gen4);
+      final ack = buildHistoryResultOk(
+        _seq.nextSync(),
+        m.token!,
+        profile: _session?.band ?? BandProfile.gen4,
+      );
       _log(
         '[SYNC] ACK frame='
         '${ack.map((b) => b.toRadixString(16).padLeft(2, '0')).join()}',
@@ -6082,28 +6272,32 @@ class BleEngine {
         // visibility, plus an explicit quarantine escalation once the SAME
         // token has failed enough times to be a real, diagnosable problem.
         final failCount = _chunkFailures.recordFailure(tokenHex);
-        await _bestEffortLedgerWrite(() => LocalDb.upsertSyncLedgerEntry(
-          chunkId: 'batch:$tokenHex',
-          kind: 'historical_batch',
-          status: 'ack_failed',
-          lastError: 'ack_write_exhausted',
-          metaPatch: {
-            'batch_id': m.batchId,
-            'records': d.records,
-            'ack_failures': failCount,
-          },
-        ));
+        await _bestEffortLedgerWrite(
+          () => LocalDb.upsertSyncLedgerEntry(
+            chunkId: 'batch:$tokenHex',
+            kind: 'historical_batch',
+            status: 'ack_failed',
+            lastError: 'ack_write_exhausted',
+            metaPatch: {
+              'batch_id': m.batchId,
+              'records': d.records,
+              'ack_failures': failCount,
+            },
+          ),
+        );
         final quarantined = _chunkFailures.shouldQuarantine(tokenHex);
         if (quarantined) {
-          await _bestEffortLedgerWrite(() => LocalDb.quarantineSyncChunk(
-            kind: 'historical_batch',
-            payloadJson: jsonEncode({
-              'token': tokenHex,
-              'batch_id': m.batchId,
-              'ack_failures': failCount,
-            }),
-            reason: 'persistent_ack_failure',
-          ));
+          await _bestEffortLedgerWrite(
+            () => LocalDb.quarantineSyncChunk(
+              kind: 'historical_batch',
+              payloadJson: jsonEncode({
+                'token': tokenHex,
+                'batch_id': m.batchId,
+                'ack_failures': failCount,
+              }),
+              reason: 'persistent_ack_failure',
+            ),
+          );
           _log(
             '[SYNC] Batch token=$tokenHex has failed ACK $failCount times '
             'across reconnects — quarantined for diagnosis. Data is safe '
@@ -6120,12 +6314,14 @@ class BleEngine {
             onState(state);
           }
         }
-        _log('[SYNC] BATCH-ACK FAILED after '
-            '${ackRetryPolicy.maxAttempts} attempts (token=$tokenHex, '
-            'failures_for_this_token=$failCount'
-            '${quarantined ? ", token QUARANTINED" : ""}) — ending the '
-            'history task; data is committed and the band re-delivers from '
-            'its un-advanced checkpoint on a later task.');
+        _log(
+          '[SYNC] BATCH-ACK FAILED after '
+          '${ackRetryPolicy.maxAttempts} attempts (token=$tokenHex, '
+          'failures_for_this_token=$failCount'
+          '${quarantined ? ", token QUARANTINED" : ""}) — ending the '
+          'history task; data is committed and the band re-delivers from '
+          'its un-advanced checkpoint on a later task.',
+        );
         // The band-side task must be told it is over: without a result on the
         // wire it re-offers this HISTORY_END forever. One best-effort abort
         // through the common boundary — which no-ops on a stale session, so
@@ -6156,35 +6352,36 @@ class BleEngine {
       // over — records were banked and the band may advance.
       _noDurableProgress.trimAcked();
       d.noteBatchAcked(); // ACKed and KEEP listening
-      await _bestEffortLedgerWrite(() => LocalDb.upsertSyncLedgerEntry(
-        status: 'acknowledged',
-        ackedAt: DateTime.now().millisecondsSinceEpoch,
-        metaPatch: {
-          'last_batch_token': tokenHex,
-          'last_batch_id': m.batchId,
-          'last_batch_records': d.records,
-          'last_ack_batches': d.batches,
-          'strap_history_oldest_ts': _strapHistoryOldestTs,
-          'strap_history_newest_ts': _strapHistoryNewestTs,
-          // Which WHOOP generation this batch came from — records/sessions
-          // vary hugely in richness by generation (and, for gen5, by whether
-          // the R22 deep-buffer opt-in was sent), so downstream diagnostics
-          // need this without reaching into the transport layer.
-          'band_generation': state.generation,
-        },
-      ));
+      await _bestEffortLedgerWrite(
+        () => LocalDb.upsertSyncLedgerEntry(
+          status: 'acknowledged',
+          ackedAt: DateTime.now().millisecondsSinceEpoch,
+          metaPatch: {
+            'last_batch_token': tokenHex,
+            'last_batch_id': m.batchId,
+            'last_batch_records': d.records,
+            'last_ack_batches': d.batches,
+            'strap_history_oldest_ts': _strapHistoryOldestTs,
+            'strap_history_newest_ts': _strapHistoryNewestTs,
+            // Which WHOOP generation this batch came from — records/sessions
+            // vary hugely in richness by generation (and, for gen5, by whether
+            // the R22 deep-buffer opt-in was sent), so downstream diagnostics
+            // need this without reaching into the transport layer.
+            'band_generation': state.generation,
+          },
+        ),
+      );
       // Same event, but a REAL per-chunk row keyed by the token — closes out
       // whatever ack_failed history this token accumulated above.
-      await _bestEffortLedgerWrite(() => LocalDb.upsertSyncLedgerEntry(
-        chunkId: 'batch:$tokenHex',
-        kind: 'historical_batch',
-        status: 'acked',
-        ackedAt: DateTime.now().millisecondsSinceEpoch,
-        metaPatch: {
-          'batch_id': m.batchId,
-          'records': d.records,
-        },
-      ));
+      await _bestEffortLedgerWrite(
+        () => LocalDb.upsertSyncLedgerEntry(
+          chunkId: 'batch:$tokenHex',
+          kind: 'historical_batch',
+          status: 'acked',
+          ackedAt: DateTime.now().millisecondsSinceEpoch,
+          metaPatch: {'batch_id': m.batchId, 'records': d.records},
+        ),
+      );
       _noteStored(); // a banked batch → schedule a (debounced) derive
     } else if (m.sub == SyncMeta.historyComplete) {
       final d = _drain;
@@ -6215,28 +6412,32 @@ class BleEngine {
           'records stay buffered for the next commit. Nothing was trimmed '
           '(HISTORY_COMPLETE is never ACKed), so no data is at risk.',
         );
-        await _bestEffortLedgerWrite(() => LocalDb.upsertSyncLedgerEntry(
-          status: 'tail_commit_failed',
-          lastError: 'durable_commit_failed',
-          metaPatch: {'records_seen': d.records},
-        ));
+        await _bestEffortLedgerWrite(
+          () => LocalDb.upsertSyncLedgerEntry(
+            status: 'tail_commit_failed',
+            lastError: 'durable_commit_failed',
+            metaPatch: {'records_seen': d.records},
+          ),
+        );
       }
       d.onComplete();
       _historyCompletions++;
       _session?.idleWatchdog?.cancel();
-      await _bestEffortLedgerWrite(() => LocalDb.upsertSyncLedgerEntry(
-        status: 'complete',
-        metaPatch: {
-          'history_complete_at': DateTime.now().millisecondsSinceEpoch,
-          'records_seen': d.records,
-          'batches_acked': d.batches,
-          'history_requests': _historyRequests,
-          'history_completions': _historyCompletions,
-          'strap_history_oldest_ts': _strapHistoryOldestTs,
-          'strap_history_newest_ts': _strapHistoryNewestTs,
-          'band_generation': state.generation,
-        },
-      ));
+      await _bestEffortLedgerWrite(
+        () => LocalDb.upsertSyncLedgerEntry(
+          status: 'complete',
+          metaPatch: {
+            'history_complete_at': DateTime.now().millisecondsSinceEpoch,
+            'records_seen': d.records,
+            'batches_acked': d.batches,
+            'history_requests': _historyRequests,
+            'history_completions': _historyCompletions,
+            'strap_history_oldest_ts': _strapHistoryOldestTs,
+            'strap_history_newest_ts': _strapHistoryNewestTs,
+            'band_generation': state.generation,
+          },
+        ),
+      );
       _log(
         '[SYNC] HistoryComplete — backlog drained (${d.records} records, '
         '${_recordGate.dropped} dropped). Still listening for live records.',
@@ -6290,7 +6491,10 @@ class BleEngine {
 
     // Stuck-strap: frontier frozen ≥10 min while the strap is >5 min ahead.
     if (_stuckStrap.observe(
-        _sessionNewestUnix, _recordGate.frontierTs, _wallSecs())) {
+      _sessionNewestUnix,
+      _recordGate.frontierTs,
+      _wallSecs(),
+    )) {
       state.strapNeedsReboot = true;
       onState(state);
       _log('[SYNC] stuck-strap tripped — defensive SET_CLOCK.');
@@ -6318,8 +6522,10 @@ class BleEngine {
     d.resetOffloadCounters();
     if (cont) {
       _autoContinue.continued(productive: productive, now: _monotonicSecs());
-      _log('[SYNC] auto-continue — more backlog remains '
-          '(unproductive streak ${_autoContinue.unproductiveStreak}).');
+      _log(
+        '[SYNC] auto-continue — more backlog remains '
+        '(unproductive streak ${_autoContinue.unproductiveStreak}).',
+      );
       // fromMarkerHandler: this runs inside the HISTORY_COMPLETE handler —
       // waiting on _historyMarkerInFlight here would deadlock on our own
       // future, and the handler is already past every controller-mutating
@@ -6346,6 +6552,7 @@ class BleEngine {
     final at = (_session?.entry ?? kWhoopGen4).innerCounterOffset;
     return inner.length >= at + 4 ? u32(inner, at) : 0;
   }
+
   static const _hexDigits = '0123456789abcdef';
   // Called once per stored record, once per archived record and once per live
   // frame, so it runs ~50k times in an offload on the UI isolate. The obvious
@@ -6378,8 +6585,10 @@ class BleEngine {
   Future<void> enableGen5DeepBuffers() async {
     if (!(_session?.band.isGen5 ?? false)) return;
     final frames = buildR22EnableSequence(startSeq: _seq.nextLive());
-    _log('Sending gen5 R22 deep-buffer enable sequence (${frames.length} '
-        'flags)…');
+    _log(
+      'Sending gen5 R22 deep-buffer enable sequence (${frames.length} '
+      'flags)…',
+    );
     for (final frame in frames) {
       // The ONE audited `allowDangerous`. SET_FF_VALUE is in `dangerousCmds`
       // because a persistent config write survives a reboot; this sequence is
@@ -6476,8 +6685,9 @@ class BleEngine {
       }
       return ok;
     }
-    final pkts =
-        drain ? initPackets : initPackets.take(initPackets.length - 1).toList();
+    final pkts = drain
+        ? initPackets
+        : initPackets.take(initPackets.length - 1).toList();
     _log('Sending ${pkts.length}-packet INIT…');
     var allWritten = true;
     try {
@@ -6643,134 +6853,138 @@ class BleEngine {
   /// gen5-exclusive opcode 147 was dropped). The reply body is the same
   /// `[u32 sec][u32 subsec]` shape on both.
   Future<void> getClock() => _send(Cmd.getClock, const <int>[]);
+
   /// Apply a strap clock reading: phone-suspect verdict, correlation, and the
   /// bounded SET_CLOCK correction. Extracted so the gen5 HELLO timestamp and a
   /// GET_CLOCK reply reach IDENTICAL logic — the pinned gen5 path takes its
   /// clock from hello and never sends GET_CLOCK, so without this the two
   /// sources would drift apart in behaviour.
   void _absorbClockEpoch(int dev) {
-      final wall = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-      // Assess phone-clock trust from the RAW read, before the alarm-safety gate
-      // below diverts a future reading. A plausible strap RTC that reads > 1 day
-      // ahead of the phone means the phone clock is likely slow — history offload
-      // then DEFERS (see _startHistoricalRefresh) instead of dropping the strap's
-      // real records as "future" and trimming them off the band. Cleared the
-      // moment a read agrees (the phone almost always self-corrects via NTP).
-      final wasSuspect = _phoneClockSuspect;
-      _phoneClockSuspect = ClockPolicy.phoneClockSuspect(dev, wall);
-      if (_phoneClockSuspect && !wasSuspect) {
-        _phoneClockSuspectSince = _monotonicSecs();
-      } else if (!_phoneClockSuspect) {
-        _phoneClockSuspectSince = null;
-      }
-      // The read gate is released above, on the reply itself, not here.
-      //
-      // UNCORRELATED either way: any GET_CLOCK reply releases the waiter,
-      // including one answering setClock()'s read-back or the keep-alive poll.
-      // Telling them apart needs the echoed request seq, which the pinned
-      // protocol does not surface — see the pin note in pubspec.yaml and
-      // OpenStrap/protocol#28. The reply that lands is still a real strap read
-      // from this session, so the verdict is fresh; it may just answer a
-      // request a few hundred ms older than ours.
-      if (_phoneClockSuspect != wasSuspect) {
-        _log(_phoneClockSuspect
+    final wall = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    // Assess phone-clock trust from the RAW read, before the alarm-safety gate
+    // below diverts a future reading. A plausible strap RTC that reads > 1 day
+    // ahead of the phone means the phone clock is likely slow — history offload
+    // then DEFERS (see _startHistoricalRefresh) instead of dropping the strap's
+    // real records as "future" and trimming them off the band. Cleared the
+    // moment a read agrees (the phone almost always self-corrects via NTP).
+    final wasSuspect = _phoneClockSuspect;
+    _phoneClockSuspect = ClockPolicy.phoneClockSuspect(dev, wall);
+    if (_phoneClockSuspect && !wasSuspect) {
+      _phoneClockSuspectSince = _monotonicSecs();
+    } else if (!_phoneClockSuspect) {
+      _phoneClockSuspectSince = null;
+    }
+    // The read gate is released above, on the reply itself, not here.
+    //
+    // UNCORRELATED either way: any GET_CLOCK reply releases the waiter,
+    // including one answering setClock()'s read-back or the keep-alive poll.
+    // Telling them apart needs the echoed request seq, which the pinned
+    // protocol does not surface — see the pin note in pubspec.yaml and
+    // OpenStrap/protocol#28. The reply that lands is still a real strap read
+    // from this session, so the verdict is fresh; it may just answer a
+    // request a few hundred ms older than ours.
+    if (_phoneClockSuspect != wasSuspect) {
+      _log(
+        _phoneClockSuspect
             ? '[SYNC] Phone clock appears wrong: strap RTC=$dev is > 1 day ahead '
-                'of phone wall=$wall — DEFERRING history offload until they agree.'
+                  'of phone wall=$wall — DEFERRING history offload until they agree.'
             : '[SYNC] Phone/strap clocks agree again (strap=$dev wall=$wall) — '
-                'history offload may resume.');
-      }
-      // SANITY GATE, mirroring the one `range_newest` gets below. An
-      // implausibly far-future `clock_epoch` yields a large NEGATIVE driftSec,
-      // and setAlarm arms at `when - driftSec` — years out, where the alarm
-      // silently never fires — while the bounded SET_CLOCK retry budget is
-      // spent chasing a value that was never real. Reject the read: with no
-      // correlation the alarm falls back to the raw wall epoch. connect()
-      // already issues an unconditional SET_CLOCK, and the periodic re-verify
-      // re-reads, so a genuinely-wrong RTC still gets corrected.
-      if (dev < kMinPlausibleUnix) {
-        // UNSET RTC. This read is now surfaced instead of swallowed by the
-        // decoder (see [_maybeAugmentClockEpoch]) so the SET_CLOCK correction
-        // below can finally fire for it — but it must NOT become a ClockRef:
-        // correlating a factory-epoch clock yields a drift of decades, and
-        // `AlarmPayloads.toStrapFrame` would arm every alarm that far in the
-        // past.
+                  'history offload may resume.',
+      );
+    }
+    // SANITY GATE, mirroring the one `range_newest` gets below. An
+    // implausibly far-future `clock_epoch` yields a large NEGATIVE driftSec,
+    // and setAlarm arms at `when - driftSec` — years out, where the alarm
+    // silently never fires — while the bounded SET_CLOCK retry budget is
+    // spent chasing a value that was never real. Reject the read: with no
+    // correlation the alarm falls back to the raw wall epoch. connect()
+    // already issues an unconditional SET_CLOCK, and the periodic re-verify
+    // re-reads, so a genuinely-wrong RTC still gets corrected.
+    if (dev < kMinPlausibleUnix) {
+      // UNSET RTC. This read is now surfaced instead of swallowed by the
+      // decoder (see [_maybeAugmentClockEpoch]) so the SET_CLOCK correction
+      // below can finally fire for it — but it must NOT become a ClockRef:
+      // correlating a factory-epoch clock yields a drift of decades, and
+      // `AlarmPayloads.toStrapFrame` would arm every alarm that far in the
+      // past.
+      _log(
+        '[SYNC] GET_CLOCK clock_epoch=$dev is below the plausible floor — '
+        'the strap RTC was never set. NOT correlating; SET_CLOCK below is '
+        'the fix.',
+      );
+    } else if (!ClockPolicy.acceptsClockRead(dev, wall)) {
+      _corruptClockReadCount++;
+      _log(
+        '[SYNC] GET_CLOCK clock_epoch=$dev is implausibly far in the future '
+        '— treating as a corrupt strap RTC read; NOT correlating the strap '
+        'clock (alarms fall back to the raw wall epoch) '
+        '(corrupt_clock_reads_total=$_corruptClockReadCount).',
+      );
+    } else {
+      _clockRef = ClockRef(device: dev, wall: wall);
+      _log('Clock correlated: device=$dev wall=$wall (drift=${wall - dev}s).');
+    }
+    // CORRECTION RUNS ON THE RAW READ, outside the correlation gate above.
+    //
+    // It used to be nested inside the accepted-read branch, which quietly
+    // made a fast strap RTC unfixable: `acceptsClockRead` rejects anything
+    // past `wall + kFutureMargin` and `phoneClockSuspect` trips past that
+    // SAME margin, so the one reading that means "the strap clock is ahead"
+    // could never reach the one code path that fixes it. History would
+    // un-defer at grace expiry — having concluded the STRAP is the fast one —
+    // straight back onto an uncorrected fast RTC, where the record gate
+    // rejects every future-stamped record and the offload can never bank
+    // anything.
+    //
+    // Rejecting the read for CORRELATION is still right (a junk value would
+    // arm alarms years out). Rejecting it for CORRECTION never was: SET_CLOCK
+    // writes real wall time, which is the correct outcome whether the read
+    // was junk or the RTC is genuinely ahead, and the retry budget is bounded
+    // at 3 either way.
+    if (ClockPolicy.shouldSetClock(dev, wall)) {
+      if (_deferForClock) {
+        // While the phone is still the suspect party, writing our wall clock
+        // onto a strap that may well be RIGHT corrupts a correct RTC and
+        // destroys the evidence — the read-back then "agrees" forever. Hold
+        // off until the phone corrects (gate clears) or the grace expires
+        // (the strap is the fast one, and the branch below fixes it).
         _log(
-          '[SYNC] GET_CLOCK clock_epoch=$dev is below the plausible floor — '
-          'the strap RTC was never set. NOT correlating; SET_CLOCK below is '
-          'the fix.',
+          'Clock drift over policy but the PHONE clock is the suspect one '
+          '(strap=$dev wall=$wall) — NOT writing SET_CLOCK yet.',
         );
-      } else if (!ClockPolicy.acceptsClockRead(dev, wall)) {
-        _corruptClockReadCount++;
+      } else if (_bootstrapClockWrite) {
+        // The bootstrap's own clock step is the single writer for this
+        // connect. Writing here too sent a
+        // factory-fresh band TWO corrections back to back — the
+        // duplicate-persistent-write hazard. The retry budget is untouched:
+        // the read-back after the bootstrap write lands once this window is
+        // closed, and a still-wrong RTC re-corrects here as before.
         _log(
-          '[SYNC] GET_CLOCK clock_epoch=$dev is implausibly far in the future '
-          '— treating as a corrupt strap RTC read; NOT correlating the strap '
-          'clock (alarms fall back to the raw wall epoch) '
-          '(corrupt_clock_reads_total=$_corruptClockReadCount).',
+          'Clock drift over policy — leaving the write to the bootstrap '
+          'clock step (one SET_CLOCK per connect).',
         );
+      } else if (_clockCorrectTries < 3) {
+        // BOUND the retries: setClock() reads the clock back and this handler
+        // re-issues on drift, so an unbounded loop would spin
+        // SET_CLOCK/GET_CLOCK forever on firmware that never latches.
+        // Historical records carry their own embedded unix time regardless,
+        // so giving up after a few tries is safe.
+        _clockCorrectTries++;
+        _log(
+          'Clock drift over policy — re-issuing SET_CLOCK '
+          '(attempt $_clockCorrectTries/3).',
+        );
+        unawaited(setClock());
       } else {
-        _clockRef = ClockRef(device: dev, wall: wall);
-        _log('Clock correlated: device=$dev wall=$wall (drift=${wall - dev}s).');
+        _log(
+          'Clock still off after 3 SET_CLOCK attempts — giving up; '
+          'firmware may not accept our payload length.',
+        );
       }
-      // CORRECTION RUNS ON THE RAW READ, outside the correlation gate above.
-      //
-      // It used to be nested inside the accepted-read branch, which quietly
-      // made a fast strap RTC unfixable: `acceptsClockRead` rejects anything
-      // past `wall + kFutureMargin` and `phoneClockSuspect` trips past that
-      // SAME margin, so the one reading that means "the strap clock is ahead"
-      // could never reach the one code path that fixes it. History would
-      // un-defer at grace expiry — having concluded the STRAP is the fast one —
-      // straight back onto an uncorrected fast RTC, where the record gate
-      // rejects every future-stamped record and the offload can never bank
-      // anything.
-      //
-      // Rejecting the read for CORRELATION is still right (a junk value would
-      // arm alarms years out). Rejecting it for CORRECTION never was: SET_CLOCK
-      // writes real wall time, which is the correct outcome whether the read
-      // was junk or the RTC is genuinely ahead, and the retry budget is bounded
-      // at 3 either way.
-      if (ClockPolicy.shouldSetClock(dev, wall)) {
-        if (_deferForClock) {
-          // While the phone is still the suspect party, writing our wall clock
-          // onto a strap that may well be RIGHT corrupts a correct RTC and
-          // destroys the evidence — the read-back then "agrees" forever. Hold
-          // off until the phone corrects (gate clears) or the grace expires
-          // (the strap is the fast one, and the branch below fixes it).
-          _log(
-            'Clock drift over policy but the PHONE clock is the suspect one '
-            '(strap=$dev wall=$wall) — NOT writing SET_CLOCK yet.',
-          );
-        } else if (_bootstrapClockWrite) {
-          // The bootstrap's own clock step is the single writer for this
-          // connect. Writing here too sent a
-          // factory-fresh band TWO corrections back to back — the
-          // duplicate-persistent-write hazard. The retry budget is untouched:
-          // the read-back after the bootstrap write lands once this window is
-          // closed, and a still-wrong RTC re-corrects here as before.
-          _log('Clock drift over policy — leaving the write to the bootstrap '
-              'clock step (one SET_CLOCK per connect).');
-        } else if (_clockCorrectTries < 3) {
-          // BOUND the retries: setClock() reads the clock back and this handler
-          // re-issues on drift, so an unbounded loop would spin
-          // SET_CLOCK/GET_CLOCK forever on firmware that never latches.
-          // Historical records carry their own embedded unix time regardless,
-          // so giving up after a few tries is safe.
-          _clockCorrectTries++;
-          _log(
-            'Clock drift over policy — re-issuing SET_CLOCK '
-            '(attempt $_clockCorrectTries/3).',
-          );
-          unawaited(setClock());
-        } else {
-          _log(
-            'Clock still off after 3 SET_CLOCK attempts — giving up; '
-            'firmware may not accept our payload length.',
-          );
-        }
-      } else {
-        _clockCorrectTries = 0; // latched — reset for the next drift episode
-      }
+    } else {
+      _clockCorrectTries = 0; // latched — reset for the next drift episode
+    }
   }
-
 
   /// GET_CLOCK, awaited to the *response* rather than to the write.
   ///
@@ -6835,9 +7049,11 @@ class BleEngine {
     // "missing or failed hello".
     final hello = _gen5Hello;
     if (!resp.success || hello == null) {
-      _log('[HELLO gen5] reply status=${resp.status} '
-          'body=${hello == null ? 'unparsed' : 'parsed'} — treating as a '
-          'failed hello.');
+      _log(
+        '[HELLO gen5] reply status=${resp.status} '
+        'body=${hello == null ? 'unparsed' : 'parsed'} — treating as a '
+        'failed hello.',
+      );
       await _noteHelloFailure('status=${resp.status}');
       return false;
     }
@@ -6881,8 +7097,10 @@ class BleEngine {
   /// one reset the counter and remove the platform bond before starting over.
   Future<void> _noteHelloFailure(String why) async {
     _helloFailures++;
-    _log('[HELLO gen5] failure $_helloFailures/$kHelloFailuresBeforeBondReset '
-        '($why) — counted across reconnect attempts.');
+    _log(
+      '[HELLO gen5] failure $_helloFailures/$kHelloFailuresBeforeBondReset '
+      '($why) — counted across reconnect attempts.',
+    );
     if (_helloFailures < kHelloFailuresBeforeBondReset) return;
     _helloFailures = 0;
     await _removePlatformBond();
@@ -6904,10 +7122,12 @@ class BleEngine {
   Future<void> _removePlatformBond() async {
     final device = _session?.device;
     final remover = debugBondRemover;
-    if (remover == null && !Platform.isAndroid) {
-      _log('[HELLO gen5] $kHelloFailuresBeforeBondReset failed hellos — a bond '
-          'reset is due, but this platform cannot remove a bond '
-          'programmatically; the user must forget the device manually.');
+    if (remover == null && (kIsWeb || !Platform.isAndroid)) {
+      _log(
+        '[HELLO gen5] $kHelloFailuresBeforeBondReset failed hellos — a bond '
+        'reset is due, but this platform cannot remove a bond '
+        'programmatically; the user must forget the device manually.',
+      );
       return;
     }
     if (remover == null && device == null) {
@@ -6916,8 +7136,10 @@ class BleEngine {
     }
     try {
       await (remover != null ? remover() : device!.removeBond());
-      _log('[HELLO gen5] $kHelloFailuresBeforeBondReset failed hellos — '
-          'platform bond removed; the next attempt re-pairs.');
+      _log(
+        '[HELLO gen5] $kHelloFailuresBeforeBondReset failed hellos — '
+        'platform bond removed; the next attempt re-pairs.',
+      );
     } catch (e) {
       _log('[HELLO gen5] bond removal failed: $e');
     }
@@ -6954,12 +7176,12 @@ class BleEngine {
     _log(
       out.written
           ? '[SYNC] GET_CLOCK went unanswered for '
-              '${_clockReadTimeout.inSeconds}s — clock verdict is UNVERIFIED '
-              'for this read; proceeding on the last known state '
-              '(phone_clock_suspect=$_phoneClockSuspect).'
+                '${_clockReadTimeout.inSeconds}s — clock verdict is UNVERIFIED '
+                'for this read; proceeding on the last known state '
+                '(phone_clock_suspect=$_phoneClockSuspect).'
           : '[SYNC] GET_CLOCK was never written — clock verdict is UNVERIFIED '
-              'for this read; proceeding on the last known state '
-              '(phone_clock_suspect=$_phoneClockSuspect).',
+                'for this read; proceeding on the last known state '
+                '(phone_clock_suspect=$_phoneClockSuspect).',
     );
     return false;
   }
@@ -7065,24 +7287,31 @@ class BleEngine {
     // stored deadline.
     final resp = await out.response;
     if (resp == null) {
-      _log('[ALARM] arm UNCONFIRMED — no correlated SET_ALARM_TIME reply. '
-          'Treating the write as the arm (the strap may not echo the '
-          'originating sequence); verify with getAlarm().');
+      _log(
+        '[ALARM] arm UNCONFIRMED — no correlated SET_ALARM_TIME reply. '
+        'Treating the write as the arm (the strap may not echo the '
+        'originating sequence); verify with getAlarm().',
+      );
       return when;
     }
     final code = (resp.fields['alarm_status'] as num?)?.toInt();
     final name = resp.fields['alarm_status_name'] as String?;
-    final rejected = resp.failed ||
+    final rejected =
+        resp.failed ||
         resp.unsupported ||
         (code != null && AlarmStatus.isInputRejection(code));
     if (rejected) {
-      _log('[ALARM] arm REJECTED by the strap — result=${resp.status} '
-          'alarm_status=$code ($name). NOT recording an alarm: there is '
-          'nothing armed on the band.');
+      _log(
+        '[ALARM] arm REJECTED by the strap — result=${resp.status} '
+        'alarm_status=$code ($name). NOT recording an alarm: there is '
+        'nothing armed on the band.',
+      );
       return null;
     }
-    _log('[ALARM] arm accepted — result=${resp.status} '
-        'alarm_status=${code ?? 'absent'} (${name ?? 'no status byte'}).');
+    _log(
+      '[ALARM] arm accepted — result=${resp.status} '
+      'alarm_status=${code ?? 'absent'} (${name ?? 'no status byte'}).',
+    );
     return when;
   }
 
@@ -7094,8 +7323,10 @@ class BleEngine {
   /// the raw epoch.
   Future<void> setAlarmSimple(DateTime when) async {
     await _send(Cmd.setAlarmTime, AlarmPayloads.simple(when));
-    _log('SET_ALARM_TIME (simple 7B) → '
-        'sec=${when.millisecondsSinceEpoch ~/ 1000}');
+    _log(
+      'SET_ALARM_TIME (simple 7B) → '
+      'sec=${when.millisecondsSinceEpoch ~/ 1000}',
+    );
   }
 
   /// Read the armed alarm back. Body is band-specific (see
@@ -7177,6 +7408,7 @@ class BleEngine {
     final c = (_session?.entry ?? kWhoopGen4).commands;
     return _send(c.hello, c.helloBody);
   }
+
   Future<void> buzz() => buzzPattern(hapticShortPulse);
 
   /// Play a haptic buzz. gen5 ("Maverick") has a DIFFERENT buzz opcode and
@@ -7249,8 +7481,10 @@ class BleEngine {
   /// can't sustain it the detectors re-trip (and re-downgrade) within seconds.
   Future<void> retryFullLiveStreams() async {
     if (state.standardHrFallback) {
-      _log('Radio fallback: cleared by explicit user action — retrying the '
-          'full live set.');
+      _log(
+        'Radio fallback: cleared by explicit user action — retrying the '
+        'full live set.',
+      );
       state.standardHrFallback = false;
       _marginalRadio.reset();
       _frameCorruption.reset();
@@ -7269,7 +7503,9 @@ class BleEngine {
     _liveEnabled = true;
     _liveHrOnly = true;
     final r10 = (_session?.entry ?? kWhoopGen4).commands.r10R11Realtime;
-    unawaited(_applyLinkPriority()); // downgraded to HR-only ⇒ step the link down
+    unawaited(
+      _applyLinkPriority(),
+    ); // downgraded to HR-only ⇒ step the link down
     await _send(Cmd.toggleRealtimeHr, const [0x01]);
     final offOps = <Future<bool> Function()>[
       () => _send(Cmd.toggleOpticalMode, const [revision1, 0x00]),
@@ -7505,8 +7741,9 @@ class BleEngine {
     final status = decoded.fields['cmd_status'];
     if (status != null && status != 1) return decoded;
     final inner = frame.inner;
-    final payload =
-        inner.length > 3 ? Uint8List.sublistView(inner, 3) : Uint8List(0);
+    final payload = inner.length > 3
+        ? Uint8List.sublistView(inner, 3)
+        : Uint8List(0);
     // Reply body starts at payload[2] (payload[0] = echoed request seq,
     // payload[1] = status). gen5 leads the body with a revision byte and puts
     // the u32 seconds at payload[3]; gen4 has them at payload[2].
@@ -7645,6 +7882,7 @@ class DrainController {
   /// Buffer only when the atomic commit path exists. Unbuffered mode
   /// (test-only) must not look like it banked durable rows for trim.
   bool get _buffering => onCommit != null;
+
   /// Every frame received this burst, ALL types. There used to be a second
   /// getter, `currentBurstPacketCount`, with the identical body — one
   /// measurement presented in the mismatch log and in the sync ledger under two
@@ -7673,9 +7911,11 @@ class DrainController {
       // non-trimmable / test-only), but an un-handled async error here would
       // lose the record AND surface as an unhandled-error crash rather than a
       // log line. Nothing else can catch a throw off an `unawaited` future.
-      unawaited(onRecord(sample, raw).catchError(
-        (Object e) => log('[SYNC] unbuffered record persist failed: $e'),
-      ));
+      unawaited(
+        onRecord(sample, raw).catchError(
+          (Object e) => log('[SYNC] unbuffered record persist failed: $e'),
+        ),
+      );
     }
   }
 
@@ -7731,9 +7971,11 @@ class DrainController {
       _archives.add(a);
     } else {
       // Same unbuffered-branch reasoning as onHistoricalRecord above.
-      unawaited((onArchive?.call(a) ?? Future<void>.value()).catchError(
-        (Object e) => log('[SYNC] unbuffered archive persist failed: $e'),
-      ));
+      unawaited(
+        (onArchive?.call(a) ?? Future<void>.value()).catchError(
+          (Object e) => log('[SYNC] unbuffered archive persist failed: $e'),
+        ),
+      );
     }
   }
 
@@ -7907,9 +8149,11 @@ class DrainController {
   void discardOpenChunk() {
     _trimGuard.discardOpenChunk();
     if (_raws.isEmpty && _archives.isEmpty) return;
-    log('discarding ${_raws.length} un-ACKed buffered records + '
-        '${_archives.length} archived (idle). This burst\'s HISTORY_END token '
-        'is now un-ACKable — the band keeps the chunk.');
+    log(
+      'discarding ${_raws.length} un-ACKed buffered records + '
+      '${_archives.length} archived (idle). This burst\'s HISTORY_END token '
+      'is now un-ACKable — the band keeps the chunk.',
+    );
     _raws.clear();
     _samples.clear();
     _archives.clear();
@@ -7973,9 +8217,11 @@ class DrainController {
       // Roll back the trim bookkeeping too — nothing advanced.
       _lastAckedToken = previousAckedToken;
       lastTrimAdvanced = previousTrimAdvanced;
-      log('offload commit FAILED ($e) — ${raws.length} records + '
-          '${archives.length} archived re-buffered; the caller MUST NOT ACK '
-          'this chunk (the band still holds it).');
+      log(
+        'offload commit FAILED ($e) — ${raws.length} records + '
+        '${archives.length} archived re-buffered; the caller MUST NOT ACK '
+        'this chunk (the band still holds it).',
+      );
       return false;
     }
   }
@@ -8006,7 +8252,8 @@ class DrainController {
       // reports the outcome it actually reached — a COMPLETE immediately
       // followed by an auto-continue claim is a SUCCESS, not a failure.
       if (_taskTerminal || _taskGeneration != waiterGen) {
-        final complete = _taskGeneration != waiterGen &&
+        final complete =
+            _taskGeneration != waiterGen &&
             (_supersededTaskComplete[waiterGen] ?? false);
         t.cancel();
         // Deliberately NO flush here. A superseded waiter's task is over and
@@ -8017,10 +8264,12 @@ class DrainController {
         // durable, which is THE commit-before-ACK violation. The terminal
         // case needs no flush either: every abort path commits or discards
         // its buffer before crossing the terminal boundary.
-        log('[SYNC] await stop=${complete ? 'supersededComplete' : 'taskTerminal'}'
-            ' — this offload ended ${complete ? 'complete (a new task claimed '
-            'immediately after HISTORY_COMPLETE)' : 'without completing (abort '
-            'boundary)'}.');
+        log(
+          '[SYNC] await stop=${complete ? 'supersededComplete' : 'taskTerminal'}'
+          ' — this offload ended ${complete ? 'complete (a new task claimed '
+                    'immediately after HISTORY_COMPLETE)' : 'without completing (abort '
+                    'boundary)'}.',
+        );
         done.complete(SyncReport(records, batches, complete));
         return;
       }

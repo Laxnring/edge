@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:provider/provider.dart';
@@ -20,7 +21,9 @@ import 'firebase_options.dart';
 import 'package:workmanager/workmanager.dart';
 import 'dart:async';
 import 'dart:io';
-import 'compute/background_derivation.dart' show kHeavyDeriveTaskName, kSyncTaskName;
+import 'compute/background_derivation.dart'
+    show kHeavyDeriveTaskName, kSyncTaskName;
+import 'data/web_database_factory.dart' show configureDatabaseFactory;
 
 /// Ceiling on every pre-runApp platform-channel await. Each one is guarded
 /// against THROWING, but a channel call that simply never completes (seen in
@@ -32,6 +35,7 @@ const _kStartupInitTimeout = Duration(seconds: 6);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await configureDatabaseFactory();
 
   // Initialize Firebase (overridden by dummy values until flutterfire configure).
   // OPTIONAL: a build with no real google-services.json / GoogleService-Info.plist
@@ -90,7 +94,7 @@ Future<void> main() async {
   // KeepAliveWorker FGS-restart watchdog via that same WorkManager instance
   // BEFORE this Dart main() runs — an unscoped cancelAll() here wipes that
   // watchdog out on every single cold start, silently disabling it.
-  if (Platform.isAndroid) {
+  if (!kIsWeb && Platform.isAndroid) {
     try {
       await Future.wait([
         Workmanager().cancelByUniqueName(kHeavyDeriveTaskName),
@@ -107,26 +111,35 @@ Future<void> main() async {
   // notifications dead until a full reconnect+re-subscribe (the "connected, no events"
   // bug). MUST be set before any other FBP call. No-op on Android.
   try {
-    await FlutterBluePlus.setOptions(restoreState: true)
-        .timeout(_kStartupInitTimeout);
-  } catch (_) {/* older plugin / unsupported platform — ignore */}
+    await FlutterBluePlus.setOptions(
+      restoreState: true,
+    ).timeout(_kStartupInitTimeout);
+  } catch (_) {
+    /* older plugin / unsupported platform — ignore */
+  }
   try {
-    await FlutterBluePlus.setLogLevel(LogLevel.none, color: false)
-        .timeout(_kStartupInitTimeout);
-  } catch (_) {/* older plugin / unsupported platform — ignore */}
+    await FlutterBluePlus.setLogLevel(
+      LogLevel.none,
+      color: false,
+    ).timeout(_kStartupInitTimeout);
+  } catch (_) {
+    /* older plugin / unsupported platform — ignore */
+  }
 
   // Optional startup services. A failure in any one of these must NEVER block the
   // first frame — they are awaited before runApp, so an unguarded throw (e.g. the
   // flutter_local_notifications `invalid_icon` crash) leaves the app stuck on the
   // native launch screen (blank/icon). Guard each so the UI always boots.
   // iOS: registers the CoreBluetooth-restoration wake handler (no-op on Android).
-  await _safeInit('IosBleRestore', IosBleRestore.init);
-  // iOS: BGProcessingTask Dart handler (openstrap/bg_task channel). No-op on Android.
-  await _safeInit('IosBgTask', IosBgTask.init);
-  // Android: headless auto-connect after reboot (no-op if a view is attached or iOS).
-  await _safeInit('HeadlessBoot', maybeHeadlessBoot);
-  await _safeInit('WidgetService', WidgetService.init);
-  await _safeInit('NotificationService', NotificationService.instance.init);
+  if (!kIsWeb) {
+    await _safeInit('IosBleRestore', IosBleRestore.init);
+    // iOS: BGProcessingTask Dart handler (openstrap/bg_task channel). No-op on Android.
+    await _safeInit('IosBgTask', IosBgTask.init);
+    // Android: headless auto-connect after reboot (no-op if a view is attached or iOS).
+    await _safeInit('HeadlessBoot', maybeHeadlessBoot);
+    await _safeInit('WidgetService', WidgetService.init);
+    await _safeInit('NotificationService', NotificationService.instance.init);
+  }
   // note: BackgroundDerivation.init() (compute/background_derivation.dart,
   // Android WorkManager periodic heavy-derive/sync) is intentionally NOT
   // called here anymore - it was deliberately removed to fix a real
@@ -144,7 +157,9 @@ Future<void> main() async {
   try {
     theme = await ThemeController.bootstrap().timeout(_kStartupInitTimeout);
   } catch (e, st) {
-    debugPrint('[main] ThemeController.bootstrap failed, using default: $e\n$st');
+    debugPrint(
+      '[main] ThemeController.bootstrap failed, using default: $e\n$st',
+    );
     theme = ThemeController.seed(
       AppThemeChoice.system,
       WidgetsBinding.instance.platformDispatcher.platformBrightness,
@@ -156,7 +171,9 @@ Future<void> main() async {
   try {
     units = await UnitsController.bootstrap().timeout(_kStartupInitTimeout);
   } catch (e, st) {
-    debugPrint('[main] UnitsController.bootstrap failed, using metric: $e\n$st');
+    debugPrint(
+      '[main] UnitsController.bootstrap failed, using metric: $e\n$st',
+    );
     units = UnitsController.seed(UnitSystem.metric);
   }
 
@@ -165,7 +182,9 @@ Future<void> main() async {
   try {
     locale = await LocaleController.bootstrap().timeout(_kStartupInitTimeout);
   } catch (e, st) {
-    debugPrint('[main] LocaleController.bootstrap failed, using system: $e\n$st');
+    debugPrint(
+      '[main] LocaleController.bootstrap failed, using system: $e\n$st',
+    );
     locale = LocaleController.seed(null);
   }
 
@@ -177,7 +196,10 @@ Future<void> main() async {
   // load lands. First frame must never wait on the keystore.
   final coachConfig = CoachConfig();
   unawaited(
-    coachConfig.load().timeout(const Duration(seconds: 15)).catchError(
+    coachConfig
+        .load()
+        .timeout(const Duration(seconds: 15))
+        .catchError(
           (Object e) =>
               debugPrint('[main] CoachConfig.load failed/timed out: $e'),
         ),
@@ -205,8 +227,10 @@ Future<void> _safeInit(String label, Future<void> Function() init) async {
   try {
     await init().timeout(_kStartupInitTimeout);
   } on TimeoutException {
-    debugPrint('[main] $label init TIMED OUT after '
-        '${_kStartupInitTimeout.inSeconds}s — continuing without it');
+    debugPrint(
+      '[main] $label init TIMED OUT after '
+      '${_kStartupInitTimeout.inSeconds}s — continuing without it',
+    );
   } catch (e, st) {
     debugPrint('[main] $label init failed (continuing without it): $e\n$st');
   }

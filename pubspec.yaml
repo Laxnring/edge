@@ -431,6 +431,9 @@ dependencies:
 
   # Local raw-first storage.
   sqflite: ^2.4.1
+  # Chrome local storage adapter: SQLite persisted in IndexedDB for the
+  # Windows web preview. Native mobile continues to use sqflite unchanged.
+  sqflite_common_ffi_web: ^1.1.1
   path: ^1.9.0
   path_provider: ^2.1.5
 

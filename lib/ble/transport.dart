@@ -24,7 +24,11 @@ extension BleEngineTransport on BleEngine {
   Future<BluetoothDevice?> scan({
     Duration timeout = const Duration(seconds: 12),
   }) =>
-      withScanLock(() => _scanLocked(timeout));
+      // Chrome's Bluetooth chooser must be opened synchronously from the tap
+      // that requested it. Routing through the process-wide async scan lock
+      // turns that into a later microtask and Chrome rejects the request as
+      // lacking user activation.
+      kIsWeb ? _scanLocked(timeout) : withScanLock(() => _scanLocked(timeout));
 
   Future<BluetoothDevice?> _scanLocked(Duration timeout) async {
     // A phone-level blocker is NOT "nothing answered". Returning null for a
@@ -32,11 +36,13 @@ extension BleEngineTransport on BleEngine {
     // told the user to walk closer to a band that was never the problem — the
     // one fix that cannot work. Check the adapter BEFORE scanning and throw,
     // so the reason reaches the caller instead of being flattened into a null.
-    final pre = await _detectBlocker();
-    if (pre != null) {
-      _noteBlocker(pre);
-      _setPhase(BleConnState.idle);
-      throw BleUnavailableException(pre);
+    if (!kIsWeb) {
+      final pre = await _detectBlocker();
+      if (pre != null) {
+        _noteBlocker(pre);
+        _setPhase(BleConnState.idle);
+        throw BleUnavailableException(pre);
+      }
     }
     if (FlutterBluePlus.isScanningNow) {
       await FlutterBluePlus.stopScan();
@@ -78,10 +84,12 @@ extension BleEngineTransport on BleEngine {
         // such fallback, so it supplies none.
         if (found == null &&
             (kFramedBands.any((e) => e.nameMatcher?.call(name) ?? false) ||
-                advNames.any((s) =>
-                    s == kWhoopMemberUuid16 ||
-                    s.startsWith('0000fd4b') ||
-                    kFramedBands.any((e) => s.startsWith(e.servicePrefix))))) {
+                advNames.any(
+                  (s) =>
+                      s == kWhoopMemberUuid16 ||
+                      s.startsWith('0000fd4b') ||
+                      kFramedBands.any((e) => s.startsWith(e.servicePrefix)),
+                ))) {
           found = r.device;
           final adv = ScanAcceptPolicy.accepts(
             r.advertisementData.serviceUuids.map((g) => g.str),
@@ -98,7 +106,18 @@ extension BleEngineTransport on BleEngine {
       }
     });
     try {
-      await FlutterBluePlus.startScan(withServices: wanted, timeout: timeout);
+      // WHOOP 4 sometimes omits its vendor service UUID from the advertisement
+      // visible to Chrome. A Web Bluetooth `withServices` filter would then
+      // hide a perfectly reachable band from the picker. Show Chrome's full
+      // nearby-device chooser instead, but request access to our known services
+      // so discovery still works once the user chooses the band. The registry
+      // match above and the GATT handshake remain the authority for accepting
+      // the selected device.
+      await FlutterBluePlus.startScan(
+        withServices: kIsWeb ? const <Guid>[] : wanted,
+        webOptionalServices: kIsWeb ? wanted : const <Guid>[],
+        timeout: timeout,
+      );
       await FlutterBluePlus.isScanning.where((on) => on == false).first;
     } catch (e) {
       // Android reports a missing runtime permission by throwing here rather

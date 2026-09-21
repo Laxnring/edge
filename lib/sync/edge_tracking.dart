@@ -27,7 +27,7 @@ class EdgeTracking {
   /// type (required for background GPS fixes during a route workout); omit it
   /// to keep the current mode.
   static Future<void> start({bool? location}) async {
-    if (!Platform.isAndroid) return;
+    if (kIsWeb || !Platform.isAndroid) return;
     if (location != null) _locationActive = location;
     try {
       await _ch.invokeMethod('start', {'location': _locationActive});
@@ -38,7 +38,7 @@ class EdgeTracking {
 
   /// Stop the service (sign-out / unpair).
   static Future<void> stop() async {
-    if (!Platform.isAndroid) return;
+    if (kIsWeb || !Platform.isAndroid) return;
     try {
       await _ch.invokeMethod('stop');
     } catch (_) {}

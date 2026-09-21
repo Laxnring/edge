@@ -17,11 +17,13 @@ $snapshot = Join-Path $sdk 'bin\cache\flutter_tools.snapshot'
 # probe. Generate into a project-local staging directory instead, then copy
 # the ignored generated sources to the path used by the app imports.
 $localizations = Join-Path $workspace 'lib\l10n\app_localizations.dart'
-if (-not (Test-Path $localizations)) {
-  $stage = Join-Path $workspace '.generated-l10n'
-  $arb = Join-Path $stage 'arb'
+$stage = Join-Path $workspace '.generated-l10n'
+$arb = Join-Path $stage 'arb'
+if (-not (Test-Path (Join-Path $arb 'app_en.arb'))) {
   New-Item -ItemType Directory -Force -Path $arb | Out-Null
   Copy-Item (Join-Path $workspace 'lib\l10n\app_*.arb') $arb -Force
+}
+if (-not (Test-Path $localizations)) {
   $config = Join-Path $workspace 'l10n.yaml'
   $disabled = Join-Path $workspace 'l10n.yaml.codex-disabled'
   $hadConfig = Test-Path $config

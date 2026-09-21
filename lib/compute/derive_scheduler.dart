@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
+
 import '../data/db.dart';
 
 enum DeriveJobKind { light, heavy }
@@ -92,14 +94,14 @@ class DeriveScheduler {
   bool get pendingHeavy => _pendingHeavy;
 
   Map<String, dynamic> snapshot() => {
-        'offload_active': _offloadActive,
-        'workout_active': _workoutActive,
-        'workout_hold_expired': _workoutHoldExpired,
-        'background': _background,
-        'running': _running,
-        'pending_light': _pendingLight,
-        'pending_heavy': _pendingHeavy,
-      };
+    'offload_active': _offloadActive,
+    'workout_active': _workoutActive,
+    'workout_hold_expired': _workoutHoldExpired,
+    'background': _background,
+    'running': _running,
+    'pending_light': _pendingLight,
+    'pending_heavy': _pendingHeavy,
+  };
 
   void markStoredData() {
     unawaited(_enqueue(type: 'derive_light', reason: 'stored_data'));
@@ -120,8 +122,10 @@ class DeriveScheduler {
       _workoutCapTimer?.cancel();
       _workoutCapTimer = Timer(workoutHoldCap, () {
         _workoutHoldExpired = true;
-        log('[derive-scheduler] workout still live past the hold cap — '
-            'treating it as forgotten; derive may run');
+        log(
+          '[derive-scheduler] workout still live past the hold cap — '
+          'treating it as forgotten; derive may run',
+        );
         onChanged();
         _arm();
       });
@@ -157,7 +161,7 @@ class DeriveScheduler {
   /// stay durable and drain when we come back to the foreground.
   void setBackground(bool background) {
     // Only defer derivation on iOS. Android has a foreground service, so we have OS budget.
-    final effectiveBackground = Platform.isIOS ? background : false;
+    final effectiveBackground = !kIsWeb && Platform.isIOS ? background : false;
     if (_background == effectiveBackground) return;
     _background = effectiveBackground;
     if (_background) {
@@ -179,10 +183,7 @@ class DeriveScheduler {
     _workoutCapTimer = null;
   }
 
-  Future<void> _enqueue({
-    required String type,
-    required String reason,
-  }) async {
+  Future<void> _enqueue({required String type, required String reason}) async {
     await LocalDb.enqueueDeriveJob(type: type, reason: reason);
     await _refreshSnapshot();
     _arm();
@@ -226,7 +227,9 @@ class DeriveScheduler {
     final kind = _parseKind(job['type']?.toString());
     _running = true;
     await _refreshSnapshot();
-    log('[derive-scheduler] running ${kind == DeriveJobKind.heavy ? "heavy" : "light"} pass');
+    log(
+      '[derive-scheduler] running ${kind == DeriveJobKind.heavy ? "heavy" : "light"} pass',
+    );
     try {
       await run(kind: kind);
       if (id != null && id.isNotEmpty) {
@@ -261,12 +264,10 @@ class DeriveScheduler {
     try {
       final jobs = await LocalDb.computeJobs(state: 'queued', limit: 50);
       _pendingLight = jobs.any(
-        (job) =>
-            job['type']?.toString() == 'derive_light',
+        (job) => job['type']?.toString() == 'derive_light',
       );
       _pendingHeavy = jobs.any(
-        (job) =>
-            job['type']?.toString() == 'derive_heavy',
+        (job) => job['type']?.toString() == 'derive_heavy',
       );
     } finally {
       _refreshing = false;

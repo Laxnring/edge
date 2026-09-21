@@ -12,6 +12,7 @@ import 'dart:async';
 import 'dart:io' show Platform;
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart' show MethodChannel;
 import 'package:flutter/widgets.dart';
 import 'package:notification_listener_service/notification_event.dart';
@@ -24,8 +25,9 @@ class NotificationRelay extends ChangeNotifier with WidgetsBindingObserver {
   // The plugin's own MethodChannel. v1.0.0's Dart API doesn't expose the native
   // rebind/health handlers, so we invoke them directly to self-heal when Android
   // unbinds the NotificationListenerService (it does this routinely over time).
-  static const MethodChannel _pluginChannel =
-      MethodChannel('x-slayer/notifications_channel');
+  static const MethodChannel _pluginChannel = MethodChannel(
+    'x-slayer/notifications_channel',
+  );
   // 15 min, not 120 s: the heal is a belt-and-braces rebind for a listener
   // Android rarely unbinds, foreground resume already heals eagerly, and a
   // missed buzz during the window costs nothing — while the timer itself ran
@@ -53,7 +55,7 @@ class NotificationRelay extends ChangeNotifier with WidgetsBindingObserver {
 
   /// Only Android can observe other apps' notifications. Everything below is a
   /// no-op when this is false, and the UI hides the feature entirely.
-  bool get supported => Platform.isAndroid;
+  bool get supported => !kIsWeb && Platform.isAndroid;
 
   bool _enabled = false;
   bool get enabled => _enabled;
@@ -151,7 +153,9 @@ class NotificationRelay extends ChangeNotifier with WidgetsBindingObserver {
     if (!supported) return false;
     try {
       await NotificationListenerService.requestPermission();
-    } catch (_) {/* user may just back out */}
+    } catch (_) {
+      /* user may just back out */
+    }
     final ok = await refreshPermission();
     _resync();
     return ok;
@@ -218,7 +222,9 @@ class NotificationRelay extends ChangeNotifier with WidgetsBindingObserver {
         },
         cancelOnError: true,
       );
-    } catch (_) {/* stream unavailable — stay inert */}
+    } catch (_) {
+      /* stream unavailable — stay inert */
+    }
   }
 
   // Ask the native side whether the listener is still bound; if not, force a
@@ -231,10 +237,16 @@ class NotificationRelay extends ChangeNotifier with WidgetsBindingObserver {
       final connected =
           await _pluginChannel.invokeMethod<bool>('isServiceConnected') ?? true;
       if (!connected) {
-        try { await _pluginChannel.invokeMethod('forceRequestRebind'); } catch (_) {}
-        try { await _pluginChannel.invokeMethod('reconnectService'); } catch (_) {}
+        try {
+          await _pluginChannel.invokeMethod('forceRequestRebind');
+        } catch (_) {}
+        try {
+          await _pluginChannel.invokeMethod('reconnectService');
+        } catch (_) {}
       }
-    } catch (_) {/* handler absent on this plugin build — ignore */}
+    } catch (_) {
+      /* handler absent on this plugin build — ignore */
+    }
   }
 
   /// Remember that [pkg] notifies, so the picker has something to offer.
@@ -315,10 +327,23 @@ class NotificationRelay extends ChangeNotifier with WidgetsBindingObserver {
 /// because "Android" under every second icon is not a name.
 String appLabel(String pkg) {
   const generic = {
-    'android', 'app', 'apps', 'client', 'mobile', 'main', 'ui',
-    'free', 'pro', 'lite', 'beta', 'release',
+    'android',
+    'app',
+    'apps',
+    'client',
+    'mobile',
+    'main',
+    'ui',
+    'free',
+    'pro',
+    'lite',
+    'beta',
+    'release',
   };
-  final parts = [for (final p in pkg.split('.')) if (p.isNotEmpty) p];
+  final parts = [
+    for (final p in pkg.split('.'))
+      if (p.isNotEmpty) p,
+  ];
   if (parts.isEmpty) return pkg;
   var i = parts.length - 1;
   while (i > 0 && generic.contains(parts[i].toLowerCase())) {

@@ -26,7 +26,7 @@ class IosBleRestore {
 
   /// Register the wake handler and tell native Flutter is ready. Call once at startup.
   static Future<void> init() async {
-    if (!Platform.isIOS) return;
+    if (kIsWeb || !Platform.isIOS) return;
     _ch.setMethodCallHandler((call) async {
       if (call.method != 'wake') return null;
       if (foregroundActive) {
@@ -58,7 +58,7 @@ class IosBleRestore {
   /// pending connect to the same peripheral. Set false (then [arm]) to hand the band
   /// to the restore path for background relaunch.
   static Future<void> setOwnsBand(bool owns) async {
-    if (!Platform.isIOS) return;
+    if (kIsWeb || !Platform.isIOS) return;
     try {
       await _ch.invokeMethod('setOwnsBand', owns);
     } catch (_) {}
@@ -70,7 +70,7 @@ class IosBleRestore {
   /// with NO CBCentralManager alive (else `showPicker` fails with "CBManager is active
   /// with global permissions"). Must be called BEFORE any flutter_blue_plus call.
   static Future<void> provisioned(String remoteId) async {
-    if (!Platform.isIOS) return;
+    if (kIsWeb || !Platform.isIOS) return;
     try {
       await _ch.invokeMethod('provisioned', remoteId);
     } catch (_) {}
@@ -78,7 +78,7 @@ class IosBleRestore {
 
   /// Arm restoration for this band (its iOS peripheral UUID == PairedDevice.remoteId).
   static Future<void> arm(String remoteId) async {
-    if (!Platform.isIOS) return;
+    if (kIsWeb || !Platform.isIOS) return;
     try {
       await _ch.invokeMethod('arm', remoteId);
     } catch (_) {}
@@ -92,7 +92,7 @@ class IosBleRestore {
   /// native side also wraps this in a short `beginBackgroundTask` extension.
   /// See `AppState._armRecovery`.
   static Future<void> armRecoveryNow(String remoteId) async {
-    if (!Platform.isIOS) return;
+    if (kIsWeb || !Platform.isIOS) return;
     foregroundActive = false;
     try {
       await _ch.invokeMethod('armRecoveryNow', remoteId);
@@ -101,7 +101,7 @@ class IosBleRestore {
 
   /// Stop restoration (sign-out / unpair).
   static Future<void> disarm() async {
-    if (!Platform.isIOS) return;
+    if (kIsWeb || !Platform.isIOS) return;
     try {
       await _ch.invokeMethod('disarm');
     } catch (_) {}
@@ -116,7 +116,7 @@ class IosBleRestore {
   /// framed band is background-restorable the change is one call site, not a
   /// channel redesign.
   static Future<void> armAll(List<String> remoteIds) async {
-    if (!Platform.isIOS || remoteIds.isEmpty) return;
+    if (kIsWeb || !Platform.isIOS || remoteIds.isEmpty) return;
     try {
       await _ch.invokeMethod('arm', remoteIds);
     } catch (_) {}
@@ -125,7 +125,7 @@ class IosBleRestore {
   /// Forget ONE band's restoration without touching the others. [disarm] with no
   /// argument still means "forget everything", which is what unpair wants.
   static Future<void> disarmOne(String remoteId) async {
-    if (!Platform.isIOS) return;
+    if (kIsWeb || !Platform.isIOS) return;
     try {
       await _ch.invokeMethod('disarm', remoteId);
     } catch (_) {}
@@ -135,7 +135,7 @@ class IosBleRestore {
   /// prerequisite. See devices.dart's addFramedBand flow; this is NOT [disarm], and
   /// confusing the two loses the primary's restore key.
   static Future<void> releaseCentralForPicker() async {
-    if (!Platform.isIOS) return;
+    if (kIsWeb || !Platform.isIOS) return;
     try {
       await _ch.invokeMethod('releaseCentralForPicker');
     } catch (_) {}
