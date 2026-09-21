@@ -82,14 +82,21 @@ extension BleEngineTransport on BleEngine {
         // WHOOP 4 supplies one because it sometimes advertises its name but
         // not a matchable service UUID; WHOOP 5's `fd4b` member UUID needs no
         // such fallback, so it supplies none.
-        if (found == null &&
-            (kFramedBands.any((e) => e.nameMatcher?.call(name) ?? false) ||
-                advNames.any(
-                  (s) =>
-                      s == kWhoopMemberUuid16 ||
-                      s.startsWith('0000fd4b') ||
-                      kFramedBands.any((e) => s.startsWith(e.servicePrefix)),
-                ))) {
+        // Chrome does not expose the selected peripheral's advertising
+        // services at all (flutter_blue_plus_web emits an empty list), and a
+        // WHOOP 4 name is not guaranteed to contain "whoop". On the web the
+        // system chooser is the user's explicit selection, so accept that one
+        // result and let the following GATT discovery validate the hardware.
+        // Native platforms retain the strict name/service acceptance rule.
+        final accepted = kIsWeb ||
+            kFramedBands.any((e) => e.nameMatcher?.call(name) ?? false) ||
+            advNames.any(
+              (s) =>
+                  s == kWhoopMemberUuid16 ||
+                  s.startsWith('0000fd4b') ||
+                  kFramedBands.any((e) => s.startsWith(e.servicePrefix)),
+            );
+        if (found == null && accepted) {
           found = r.device;
           final adv = ScanAcceptPolicy.accepts(
             r.advertisementData.serviceUuids.map((g) => g.str),
