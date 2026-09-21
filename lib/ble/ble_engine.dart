@@ -1053,6 +1053,10 @@ class BleEngine {
 
   // ── transport state machine ─────────────────────────────────────────────────
   BleConnState _phase = BleConnState.idle;
+  /// The detailed transport stage. `DeviceState.connection` deliberately
+  /// collapses these into four simple states for ordinary UI, while pairing
+  /// diagnostics need to say which connection step is taking time.
+  BleConnState get phase => _phase;
   _Session? _session;
 
   // Single in-flight guard. Every connect/disconnect/reconnect serialises through

@@ -125,7 +125,7 @@ class _PairingScreenState extends State<PairingScreen> {
     final app = context.read<AppState>();
     setState(() {
       _phase = PairPhase.scanning;
-      _detail = '';
+      _detail = 'Opening Chrome\'s nearby-device chooser…';
       _blocker = null;
     });
     try {
@@ -138,6 +138,10 @@ class _PairingScreenState extends State<PairingScreen> {
         if (found == null) {
           if (mounted) setState(() => _phase = PairPhase.notFound);
           return;
+        }
+        if (mounted) {
+          setState(() => _detail =
+              'WHOOP selected. Opening its Bluetooth connection…');
         }
         await app.pairWith(found);
       }
@@ -185,18 +189,23 @@ class _PairingScreenState extends State<PairingScreen> {
   }
 
   @override
-  Widget build(BuildContext c) => PairingView(
-    phase: _phase,
-    detail: _detail,
-    blocker: _blocker,
-    onPair: _phase == PairPhase.paired ? _continueToApp : _pair,
-    onSkip: widget.onSkip,
-  );
+  Widget build(BuildContext c) {
+    final app = c.watch<AppState>();
+    return PairingView(
+      phase: _phase,
+      detail: _detail,
+      transportStage: _phase == PairPhase.scanning ? app.engine.phase : null,
+      blocker: _blocker,
+      onPair: _phase == PairPhase.paired ? _continueToApp : _pair,
+      onSkip: widget.onSkip,
+    );
+  }
 }
 
 class PairingView extends StatelessWidget {
   final PairPhase phase;
   final String detail;
+  final BleConnState? transportStage;
   final VoidCallback onPair;
   final VoidCallback? onSkip;
 
@@ -208,6 +217,7 @@ class PairingView extends StatelessWidget {
     required this.phase,
     required this.onPair,
     this.detail = '',
+    this.transportStage,
     this.blocker,
     this.onSkip,
   });
@@ -255,8 +265,11 @@ class PairingView extends StatelessWidget {
               ),
             ],
             if (busy) ...[
-              const SizedBox(height: S.x8),
-              Center(child: CircularProgressIndicator(color: p.on(C.blue))),
+              const SizedBox(height: S.x5),
+              _ConnectionProgress(
+                stage: transportStage,
+                detail: detail,
+              ),
             ],
             ..._advice(c, phase, detail),
             const SizedBox(height: S.x8),
@@ -406,6 +419,76 @@ class PairingView extends StatelessWidget {
       ],
       _ => const [],
     };
+  }
+}
+
+/// The pairing state is deliberately decomposed here instead of shown as one
+/// spinner. Chrome's chooser, BLE connection and WHOOP service setup fail for
+/// different reasons, and this is the moment a person needs to know which one
+/// they are waiting on.
+class _ConnectionProgress extends StatelessWidget {
+  const _ConnectionProgress({required this.stage, required this.detail});
+
+  final BleConnState? stage;
+  final String detail;
+
+  int get _active => switch (stage) {
+        BleConnState.discovering => 2,
+        BleConnState.subscribing => 3,
+        BleConnState.settingUp || BleConnState.listening => 4,
+        BleConnState.connecting => 1,
+        _ => 0,
+      };
+
+  @override
+  Widget build(BuildContext c) {
+    final p = P.of(c);
+    const steps = [
+      'Choose the WHOOP in Chrome',
+      'Open Bluetooth connection',
+      'Check WHOOP services',
+      'Enable the data channel',
+      'Start the first sync',
+    ];
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(S.x4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Connection progress',
+                style: F.body.copyWith(
+                    color: p.ink, fontWeight: FontWeight.w700)),
+            const SizedBox(height: S.x2),
+            for (var i = 0; i < steps.length; i++)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                child: Row(children: [
+                  Icon(
+                    i < _active
+                        ? LucideIcons.circleCheck
+                        : i == _active
+                        ? LucideIcons.loaderCircle
+                        : LucideIcons.circle,
+                    size: 16,
+                    color: i <= _active ? p.on(C.blue) : p.ink3,
+                  ),
+                  const SizedBox(width: S.x2),
+                  Text(steps[i],
+                      style: F.cap.copyWith(
+                          color: i <= _active ? p.ink : p.ink3,
+                          fontWeight:
+                              i == _active ? FontWeight.w700 : FontWeight.w400)),
+                ]),
+              ),
+            if (detail.isNotEmpty) ...[
+              const SizedBox(height: S.x2),
+              Text(detail, style: F.cap.copyWith(color: p.ink2)),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 }
 
