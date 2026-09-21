@@ -129,7 +129,7 @@ class _OpenStrapAppState extends State<OpenStrapApp> with WidgetsBindingObserver
     final theme = context.watch<ThemeController>();
     final locale = context.watch<LocaleController>();
     return MaterialApp(
-      title: 'OpenStrap',
+      title: 'NOOP',
       debugShowCheckedModeBanner: false,
       // Edge is a single-screen app shell, not a browser-routed website.  On
       // Flutter Web an old/debug URL such as `#ProfileHome` becomes the
@@ -570,7 +570,11 @@ class _ShellState extends State<_Shell> {
         ShellDomain.health => const HealthScreen(),
         ShellDomain.nutrition => const NutritionScreen(),
         ShellDomain.workout => const WorkoutScreen(),
-        ShellDomain.wellness => const WellnessScreen(),
+        // Settings is intentionally the third and final front-door tab. The
+        // old Wellness tools remain available from their specific links, but
+        // personal calibration, strap controls and app preferences belong
+        // together here.
+        ShellDomain.wellness => const ProfileHome(),
       },
     );
   }

@@ -1535,6 +1535,15 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
           Expanded(
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(
+                'NOOP',
+                style: F.over.copyWith(
+                  color: p.on(C.domHome),
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.6,
+                ),
+              ),
+              const SizedBox(height: S.x1),
               Row(children: [
                 Flexible(
                   child: Text(

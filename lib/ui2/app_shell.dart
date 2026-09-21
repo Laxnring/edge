@@ -1,8 +1,9 @@
-// The five-tab shell.
+// The deliberately small NOOP shell.
 //
-// Home · Health · Nutrition · Workout · Wellness. Stable forever: the contents
-// personalise, the mental map does not. Each domain owns an accent, so colour
-// tells you where you are before the label does.
+// Today · Trends · Settings. Edge's five-topic navigation made the useful
+// daily answer compete with a collection of tools. The other domains remain
+// reachable through detail links and legacy notification routes, but they no
+// longer occupy the main navigation.
 //
 // There is no sixth tab, and the type system is what says so — [ShellDomain]
 // is a closed enum and [AppShell] takes a builder keyed by it, so "just add a
@@ -16,13 +17,14 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'grammar.dart';
 import 'theme.dart';
 
-/// The five primary destinations, in bar order.
+/// Internal domains retained for old links and background routes. Only the
+/// three daily destinations below are exposed in the main navigation.
 enum ShellDomain {
-  home('Home', LucideIcons.house, C.domHome),
-  health('Health', LucideIcons.heartPulse, C.domHealth),
+  home('Today', LucideIcons.house, C.domHome),
+  health('Trends', LucideIcons.chartNoAxesCombined, C.domHealth),
   nutrition('Nutrition', LucideIcons.utensils, C.domFood),
   workout('Workout', LucideIcons.dumbbell, C.domMove),
-  wellness('Wellness', LucideIcons.leaf, C.domMind);
+  wellness('Settings', LucideIcons.settings, C.domMind);
 
   const ShellDomain(this.label, this.icon, this.accent);
 
@@ -120,6 +122,11 @@ class _TabBar extends StatelessWidget {
   @override
   Widget build(BuildContext c) {
     final p = P.of(c);
+    const mainTabs = [
+      ShellDomain.home,
+      ShellDomain.health,
+      ShellDomain.wellness,
+    ];
     return Container(
       decoration: BoxDecoration(
         color: p.card,
@@ -131,7 +138,7 @@ class _TabBar extends StatelessWidget {
           height: 60,
           child: Row(
             children: [
-              for (final d in ShellDomain.values)
+              for (final d in mainTabs)
                 Expanded(
                   child: _Tab(
                     domain: d,
