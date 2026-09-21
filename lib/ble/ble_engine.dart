@@ -2437,6 +2437,21 @@ class BleEngine {
       final events = found.events;
       final data = found.data;
 
+      // Chrome's Web Bluetooth bridge can resolve service discovery before it
+      // is ready to send the first CCCD write to a WHOOP 4. Starting
+      // notifications immediately then hangs for the old 15-second generic
+      // deadline. Give the freshly opened GATT service a short settle window;
+      // native clients do not need it.
+      if (kIsWeb) {
+        _log('Chrome: waiting briefly for WHOOP services to settle.');
+        await Future<void>.delayed(const Duration(milliseconds: 750));
+        if (_session != session || !session.connected) {
+          _log('link dropped while waiting for WHOOP services to settle.');
+          await _failConnect();
+          return false;
+        }
+      }
+
       // The bond is complete by here, so this is the pause that precedes
       // notification registration — [BandEntry.preRegistrationDelay], zero on
       // a band with no evidence for one.
@@ -3859,7 +3874,16 @@ class BleEngine {
     BluetoothCharacteristic c,
     String role,
   ) async {
-    await c.setNotifyValue(true).timeout(_notifySetupTimeout);
+    // A web browser proxies the CCCD write through its Bluetooth process and
+    // can take longer than a native app immediately after discovery. Keep the
+    // native timeout tight, but give Chrome enough time to complete a real
+    // handshake rather than reporting a misleading 15-second failure.
+    final timeout = kIsWeb
+        ? const Duration(seconds: 35)
+        : _notifySetupTimeout;
+    _log('Enabling WHOOP $role notifications (up to ${timeout.inSeconds}s).');
+    await c.setNotifyValue(true).timeout(timeout);
+    _log('WHOOP $role notifications enabled.');
     session.subs.add(
       c.onValueReceived.listen((chunk) {
         // Ignore notifications from a session we've already torn down.
