@@ -12,6 +12,92 @@ import '../sync_health.dart';
 class SyncDetailsScreen extends StatelessWidget {
   const SyncDetailsScreen({super.key});
 
+  /// The one sentence a person needs before the diagnostic timeline below.
+  ///
+  /// `connected` and `syncingNow` answer different questions: the former only
+  /// means GATT is open; the latter means records have actually reached local
+  /// storage. Keeping those states separate is what prevents a stalled Chrome
+  /// GATT session from looking like a slow first sync.
+  _SyncExplanation _explain({
+    required AppState app,
+    required bool connected,
+    required bool receiving,
+    required bool deriving,
+    required bool pending,
+    required bool bleStale,
+  }) {
+    final status = app.engine.bandStatus;
+    final connection = app.device.connection;
+    if (status.isFault) {
+      return _SyncExplanation(
+        title: status.title,
+        body: status.reason,
+        next: status.fix ?? 'Reconnect the band, then try Sync now again.',
+        icon: LucideIcons.triangleAlert,
+        working: false,
+      );
+    }
+    if (!connected) {
+      final connecting = connection == 'connecting' || app.busy;
+      return _SyncExplanation(
+        title: connecting ? 'Connecting to your WHOOP' : 'Not syncing — band disconnected',
+        body: connecting
+            ? 'Chrome is opening the Bluetooth connection. No recording has reached Edge yet.'
+            : 'A paired band is not an active connection. Edge cannot download data until the Bluetooth link is live.',
+        next: connecting
+            ? 'Keep this tab open and keep the band close.'
+            : 'Tap Sync now. If Chrome does not show a chooser, use the Chrome window opened by RUN_EDGE.bat.',
+        icon: connecting ? LucideIcons.bluetoothSearching : LucideIcons.bluetoothOff,
+        working: connecting,
+      );
+    }
+    if (bleStale) {
+      return const _SyncExplanation(
+        title: 'Connected, but no data is arriving',
+        body: 'The Bluetooth link is open but has stopped delivering notifications. This is a stalled connection, not a slow sync.',
+        next: 'Tap Sync now to reconnect. Keep the official WHOOP app fully closed while testing.',
+        icon: LucideIcons.wifiOff,
+        working: false,
+      );
+    }
+    if (receiving) {
+      return const _SyncExplanation(
+        title: 'Downloading recordings from the band',
+        body: 'Records are reaching local storage now. A large backlog can take several minutes.',
+        next: 'Leave this screen open; Edge will start calculating automatically once the band goes quiet.',
+        icon: LucideIcons.download,
+        working: true,
+      );
+    }
+    if (deriving || pending) {
+      return _SyncExplanation(
+        title: deriving ? 'Calculating today\'s health data' : 'Data received — calculation queued',
+        body: deriving
+            ? 'Edge is deriving sleep, recovery, strain and trends from the recordings already downloaded.'
+            : 'The band data is stored. The calculation will start after the brief settling window.',
+        next: 'Nothing to do — the dashboard refreshes when this step finishes.',
+        icon: LucideIcons.chartNoAxesCombined,
+        working: true,
+      );
+    }
+    if (app.lastRecordAt == null) {
+      return const _SyncExplanation(
+        title: 'Connected — waiting for the first recording',
+        body: 'The band is connected, but it has not sent a history record to Edge yet.',
+        next: 'Keep the band nearby for a minute. If this does not change, tap Sync now to start a fresh connection.',
+        icon: LucideIcons.clock3,
+        working: true,
+      );
+    }
+    return _SyncExplanation(
+      title: 'Sync complete',
+      body: 'The latest stored strap recording is from ${_when(app.lastRecordAt)}.',
+      next: 'You can leave the app open for live heart rate, or sync again later for new history.',
+      icon: LucideIcons.circleCheck,
+      working: false,
+    );
+  }
+
   String _when(DateTime? value) {
     if (value == null) return 'Not available yet';
     final local = value.toLocal();
@@ -63,32 +149,53 @@ class SyncDetailsScreen extends StatelessWidget {
       app.lastDataAt,
       now: DateTime.now(),
     );
-    final complete =
-        connected &&
-        !receiving &&
-        !deriving &&
-        !pending &&
-        app.lastRecordAt != null;
+    final explanation = _explain(
+      app: app,
+      connected: connected,
+      receiving: receiving,
+      deriving: deriving,
+      pending: pending,
+      bleStale: bleStale,
+    );
 
     return Scaffold(
       appBar: AppBar(title: const Text('Sync details')),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          Text(
-            receiving
-                ? 'Receiving recordings'
-                : deriving || pending
-                ? 'Processing recordings'
-                : complete
-                        ? 'No sync currently running'
-                : 'Waiting for the band',
-            style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
+          Card(
+            color: explanation.working
+                ? Theme.of(context).colorScheme.primaryContainer
+                : null,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(explanation.icon, size: 28),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(explanation.title,
+                            style: const TextStyle(
+                                fontSize: 20, fontWeight: FontWeight.w700)),
+                        const SizedBox(height: 6),
+                        Text(explanation.body),
+                        const SizedBox(height: 10),
+                        Text('Next: ${explanation.next}',
+                            style: const TextStyle(fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           const Text(
-            'These are the actual stages OpenStrap can verify. A quiet link is '
-            'not treated as a fake percentage or a claim that every record has arrived.',
+            'Progress is shown as verified stages, not a made-up percentage: Bluetooth connection, records saved locally, then health calculations.',
           ),
           const SizedBox(height: 20),
           _Stage(
@@ -107,7 +214,7 @@ class SyncDetailsScreen extends StatelessWidget {
                 ? 'No BLE notification for ${_age(app.lastDataAt)}'
                 : 'Last strap record: ${_when(app.lastRecordAt)}',
             done: app.lastRecordAt != null && !receiving && !bleStale,
-            active: receiving || bleStale,
+            active: receiving,
           ),
           _Stage(
             icon: LucideIcons.activity,
@@ -280,4 +387,20 @@ class _Stage extends StatelessWidget {
           : null,
     );
   }
+}
+
+class _SyncExplanation {
+  const _SyncExplanation({
+    required this.title,
+    required this.body,
+    required this.next,
+    required this.icon,
+    required this.working,
+  });
+
+  final String title;
+  final String body;
+  final String next;
+  final IconData icon;
+  final bool working;
 }
