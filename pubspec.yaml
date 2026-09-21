@@ -672,3 +672,10 @@ flutter:
           weight: 700
         - asset: assets/fonts/Manrope/Manrope-800.ttf
           weight: 800
+
+# Chrome Web Bluetooth enables notifications with startNotifications() rather
+# than a native CCCD write acknowledgement. Keep this small web backend patch
+# local until the upstream plugin handles that distinction.
+dependency_overrides:
+  flutter_blue_plus_web:
+    path: third_party/flutter_blue_plus_web
