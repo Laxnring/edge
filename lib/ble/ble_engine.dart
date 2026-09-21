@@ -3882,6 +3882,9 @@ class BleEngine {
         ? const Duration(seconds: 35)
         : _notifySetupTimeout;
     _log('Enabling WHOOP $role notifications (up to ${timeout.inSeconds}s).');
+    if (kIsWeb) {
+      _log('Chrome uses a direct notification handshake; no descriptor callback is expected.');
+    }
     // flutter_blue_plus has its own 15-second default while it waits for the
     // CCCD response. Pass the same deadline into it; wrapping the Future alone
     // cannot extend an error the plugin has already raised internally.

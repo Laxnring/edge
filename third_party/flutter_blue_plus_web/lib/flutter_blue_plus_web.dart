@@ -490,7 +490,25 @@ final class FlutterBluePlusWeb extends FlutterBluePlusPlatform {
         _characteristicValueChangedEventListener,
       );
 
-      await characteristic.startNotifications().toDart;
+      try {
+        // A pending promise here is a real browser/GATT stall, unlike the
+        // descriptor callback bug handled by the `return false` below. Give
+        // the UI a useful, actionable error instead of a generic timeout.
+        await characteristic.startNotifications().toDart.timeout(
+          const Duration(seconds: 20),
+          onTimeout: () => throw TimeoutException(
+            'Chrome did not finish the WHOOP notification handshake. '
+            'Close the WHOOP app on nearby phones and try again with the band '
+            'within arm\'s reach.',
+          ),
+        );
+      } catch (_) {
+        characteristic.removeEventListener(
+          'characteristicvaluechanged',
+          _characteristicValueChangedEventListener,
+        );
+        rethrow;
+      }
     } else {
       await characteristic.stopNotifications().toDart;
 
