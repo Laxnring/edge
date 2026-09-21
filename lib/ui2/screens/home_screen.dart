@@ -1642,30 +1642,34 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
         // ── at a glance ──
         Section(l?.homeAtAGlance ?? 'At a glance', _glance(c, d)),
 
-        // ── today's plan: only what the app can actually stand behind ──
-        Section(l?.homeTodaysPlan ?? "Today's plan", _plan(c, p, d)),
-
-        // ── the way into the whole day ──
-        //
-        // A DOOR, NOT A CARD, and that is what keeps it on the right side of
-        // the law at the top of this file. It shows no number, previews no
-        // shape and makes no observation — it names a place and goes there.
-        // Home decides; the day view is where you go to look, and until this
-        // row existed the only ways in were two screens deep.
-        const SizedBox(height: S.x5),
-        detailLinkRow(c, LucideIcons.chartGantt,
-            l?.homeBreakdownTitle ?? 'Breakdown of your day',
-            l?.homeBreakdownSubtitle ?? 'Hour by hour',
-            () => go(c, const DayTimelineScreen())),
-        detailLinkRow(c, LucideIcons.moon, 'Sleep stages',
-            'Open the estimated hypnogram and sleep details',
-            () => go(c, const SleepDetail())),
-        detailLinkRow(c, LucideIcons.refreshCw, 'Sync details',
-            'See connection, storage and processing status',
-            () => go(c, const SyncDetailsScreen())),
-        detailLinkRow(c, LucideIcons.footprints, 'WHOOP fitness test',
-            'Estimate VO₂ max from a one-mile walk',
-            () => go(c, const RockportTestScreen())),
+        // Everything below is useful, but it is not needed to decide what to
+        // do right now. Keeping it behind one deliberate door leaves the home
+        // screen as a daily cockpit rather than Edge's original wall of tools.
+        const SizedBox(height: S.x3),
+        Card(
+          child: ExpansionTile(
+            leading: const Icon(LucideIcons.ellipsis),
+            title: const Text('More details'),
+            subtitle: const Text('Plan, timeline, sleep stages and fitness'),
+            childrenPadding: const EdgeInsets.fromLTRB(S.x4, 0, S.x4, S.x3),
+            children: [
+              Section(l?.homeTodaysPlan ?? "Today's plan", _plan(c, p, d)),
+              detailLinkRow(c, LucideIcons.chartGantt,
+                  l?.homeBreakdownTitle ?? 'Breakdown of your day',
+                  l?.homeBreakdownSubtitle ?? 'Hour by hour',
+                  () => go(c, const DayTimelineScreen())),
+              detailLinkRow(c, LucideIcons.moon, 'Sleep stages',
+                  'Open the estimated hypnogram and sleep details',
+                  () => go(c, const SleepDetail())),
+              detailLinkRow(c, LucideIcons.refreshCw, 'Sync details',
+                  'See connection, storage and processing status',
+                  () => go(c, const SyncDetailsScreen())),
+              detailLinkRow(c, LucideIcons.footprints, 'WHOOP fitness test',
+                  'Estimate VO₂ max from a one-mile walk',
+                  () => go(c, const RockportTestScreen())),
+            ],
+          ),
+        ),
       ],
     ]));
   }
