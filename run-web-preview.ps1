@@ -18,6 +18,15 @@ if ($LASTEXITCODE -gt 7) {
   throw "Could not prepare the local web preview (robocopy exit code $LASTEXITCODE)."
 }
 
+# OneDrive can mark copied source files read-only. Flutter's localization step
+# regenerates code next to the ARB files, so a preview must be writable even
+# when the source checkout itself is cloud-managed.
+Get-ChildItem -LiteralPath $preview -Recurse -Force | ForEach-Object {
+  if ($_.Attributes -band [IO.FileAttributes]::ReadOnly) {
+    $_.Attributes = $_.Attributes -band (-bnot [IO.FileAttributes]::ReadOnly)
+  }
+}
+
  $defaultRun = $FlutterArgs.Count -eq 0
 if ($defaultRun) {
   $FlutterArgs = @('run', '-d', 'chrome')

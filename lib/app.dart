@@ -37,6 +37,12 @@ import 'ui2/screens/wellness_screen.dart';
 import 'ui2/screens/workout_screen.dart';
 import 'ui2/ui2.dart';
 
+/// Browser fragments from an old Flutter preview (for example
+/// `#ProfileHome`) are not app routes. The app has one gate which restores its
+/// own state, so every web launch starts here instead of resolving the browser
+/// fragment as a named Flutter route.
+const String kBrowserInitialRoute = '/';
+
 class OpenStrapApp extends StatefulWidget {
   const OpenStrapApp({super.key});
   @override
@@ -125,6 +131,13 @@ class _OpenStrapAppState extends State<OpenStrapApp> with WidgetsBindingObserver
     return MaterialApp(
       title: 'OpenStrap',
       debugShowCheckedModeBanner: false,
+      // Edge is a single-screen app shell, not a browser-routed website.  On
+      // Flutter Web an old/debug URL such as `#ProfileHome` becomes the
+      // platform's initial named route; without this override MaterialApp
+      // tries to resolve that non-existent named route before `_Gate` can
+      // render, which looks like an app crash.  Always start at the gate. Deep
+      // links from notifications are delivered through AppState instead.
+      initialRoute: kBrowserInitialRoute,
       // The palette is the design system's, the CHOICE is still the user's.
       theme: buildTheme(Brightness.light),
       darkTheme: buildTheme(Brightness.dark),
