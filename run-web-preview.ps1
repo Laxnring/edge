@@ -8,6 +8,29 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $source = Split-Path -Parent $MyInvocation.MyCommand.Path
+
+# The stable port is intentional: it preserves Chrome's Web Bluetooth grant
+# and the local app database across launches. A second double-click should use
+# the preview already serving there, not fail with Windows' "address already
+# in use" error. Only do this for the normal run path — tests and builds do
+# not start a browser server.
+$normalLaunch = $FlutterArgs.Count -eq 0
+if ($normalLaunch) {
+  $existing = Get-NetTCPConnection -LocalPort 65429 -State Listen -ErrorAction SilentlyContinue
+  if ($existing) {
+    try {
+      $response = Invoke-WebRequest -UseBasicParsing -Uri 'http://localhost:65429/' -TimeoutSec 3
+      if ($response.StatusCode -eq 200 -and $response.Content -match 'flutter_bootstrap') {
+        Write-Host 'NOOP is already running at http://localhost:65429 — opening it in Chrome.'
+        Start-Process 'http://localhost:65429'
+        exit 0
+      }
+    } catch {
+      # A different program has the port. The normal Flutter error below names
+      # the conflict rather than silently opening an unrelated local service.
+    }
+  }
+}
 # A unique directory is intentional. Reusing one preview meant Flutter could
 # reuse stale build artefacts from an earlier source copy, so the launcher could
 # open an old screen after an update. Each launch now starts from the source
@@ -42,7 +65,7 @@ Get-ChildItem -LiteralPath $preview -Recurse -Force | ForEach-Object {
   }
 }
 
- $defaultRun = $FlutterArgs.Count -eq 0
+ $defaultRun = $normalLaunch
 if ($defaultRun) {
   # Web Bluetooth permission and the local app database are scoped to the
   # browser origin, including its port. A random Flutter port made every new
