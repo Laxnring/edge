@@ -42,7 +42,7 @@ import '../../state/app_state.dart';
 import '../../state/units_controller.dart';
 import '../../theme/theme_switcher.dart' show themedRoute;
 import '../activity/day_strain.dart' show DayStrainDetail;
-import '../pairing/device_picker.dart';
+import '../onboarding/pairing.dart' show PairingScreen;
 import '../profile/profile.dart';
 import '../ui2.dart';
 import '../strap_status.dart';
@@ -1384,9 +1384,10 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
     final connection = device.connection;
     final wrist = device.wristOn;
     final charging = device.charging == true;
-    // A dropped BLE link is most usefully fixed from Today by returning to the
-    // nearby-device picker. Do not erase the saved pairing here: a successful
-    // new pairing will replace it, while a cancelled scan leaves it intact.
+    // A dropped primary-band link is most usefully fixed from Today by taking
+    // the person straight to the WHOOP chooser. Do not erase the saved pairing
+    // here: a successful new pairing replaces it, while cancellation leaves it
+    // intact. The generic device picker added an irrelevant extra category tap.
     final canRepair = connection == 'disconnected';
     final status = StrapStatus.from(
       connection: connection,
@@ -1411,7 +1412,7 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
       icon: charging || low ? LucideIcons.batteryCharging : LucideIcons.watch,
       onFix: () => go(
         c,
-        canRepair ? const DevicePickerScreen() : const SyncDetailsScreen(),
+        canRepair ? const PairingScreen() : const SyncDetailsScreen(),
       ),
     );
   }

@@ -44,7 +44,12 @@ Get-ChildItem -LiteralPath $preview -Recurse -Force | ForEach-Object {
 
  $defaultRun = $FlutterArgs.Count -eq 0
 if ($defaultRun) {
-  $FlutterArgs = @('run', '-d', 'chrome')
+  # Web Bluetooth permission and the local app database are scoped to the
+  # browser origin, including its port. A random Flutter port made every new
+  # launch look like a different app: users could reopen an old tab and a
+  # WHOOP permission granted in the previous run was unusable. Keep one stable
+  # local address for this Windows preview.
+  $FlutterArgs = @('run', '-d', 'chrome', '--web-hostname', 'localhost', '--web-port', '65429')
 }
 
 Push-Location $preview
