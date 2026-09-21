@@ -153,8 +153,15 @@ class _PairingScreenState extends State<PairingScreen> {
       if (!app.engine.isConnected) {
         setState(() {
           _phase = PairPhase.failed;
-          _detail = app.logLines.firstOrNull ??
-              'Chrome selected the band, but the Bluetooth connection did not complete.';
+          // Put the actual connection sequence on the failure screen. The
+          // newest line alone is often only "could not reach the band"; the
+          // preceding engine lines say whether it was GATT, service discovery
+          // or notification setup that stopped.
+          _detail = app.logLines.take(8).join('\n');
+          if (_detail.isEmpty) {
+            _detail =
+                'Chrome selected the band, but the Bluetooth connection did not complete.';
+          }
         });
         return;
       }
@@ -407,14 +414,16 @@ class PairingView extends StatelessWidget {
         const SizedBox(height: S.x6),
         StatusCard(
           l?.pairingFailedAdviceTitle ??
-              'The band was found but the session did not finish',
+              'The band was found, but setup stopped',
           l?.pairingFailedAdviceBody ??
-              'Scanning again from a metre away normally works.',
+              'The connection log below says which step stopped. Keep the '
+                  'WHOOP close and fully close any other app connected to it '
+                  'before retrying.',
           icon: LucideIcons.triangleAlert,
         ),
         if (detail.isNotEmpty) ...[
           const SizedBox(height: S.x3),
-          _Detail(detail),
+          _Detail('Connection log\n$detail'),
         ],
       ],
       _ => const [],
