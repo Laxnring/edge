@@ -146,11 +146,23 @@ bool syncingNowOf(BuildContext c) {
   }
 }
 
-/// Whether a derive job is running or about to (the backlog just landed and
-/// today's numbers are being worked out), or false in a golden.
+/// Whether a derive job is actively calculating, or false in a golden.
+///
+/// This must stay distinct from a queued job: a first WHOOP history download
+/// deliberately holds analysis until capture settles, and calling that wait
+/// "Crunching" made a healthy long sync look frozen.
 bool derivingOf(BuildContext c) {
   try {
-    return c.select<AppState, bool>((a) => a.deriving || a.derivePending);
+    return c.select<AppState, bool>((a) => a.deriving);
+  } catch (_) {
+    return false;
+  }
+}
+
+/// Whether analysis is queued behind a settling sync, or false in a golden.
+bool deriveQueuedOf(BuildContext c) {
+  try {
+    return c.select<AppState, bool>((a) => a.derivePending);
   } catch (_) {
     return false;
   }
@@ -1333,11 +1345,12 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
   Widget? _phaseStatusCard(BuildContext c, AppLocalizations? l) {
     final syncing = syncingNowOf(c);
     final deriving = derivingOf(c);
+    final deriveQueued = deriveQueuedOf(c);
     // The tap latch is otherwise cleared only by its 20s grace timer — if
     // real progress lands before that timer fires, clear it here too so the
     // UI does not bounce back to "Connecting" once syncing/deriving goes
     // quiet again.
-    if ((syncing || deriving) && _syncTapped) {
+    if ((syncing || deriving || deriveQueued) && _syncTapped) {
       _syncTapped = false;
       _syncTapTimer?.cancel();
     }
@@ -1360,6 +1373,14 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
         l?.homeAnalyzingTitle ?? 'Crunching last night\'s numbers',
         l?.homeAnalyzingBody ?? 'The data is in — sleep, recovery and strain '
             'are next.',
+        leading: spinner,
+      );
+    }
+    if (deriveQueued) {
+      return StatusCard(
+        'Waiting for the sync to settle',
+        'Last night\'s summary is queued. Keep this tab open while the strap '
+            'finishes sending its history.',
         leading: spinner,
       );
     }
