@@ -1346,6 +1346,8 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
     final syncing = syncingNowOf(c);
     final deriving = derivingOf(c);
     final deriveQueued = deriveQueuedOf(c);
+    final app = c.watch<AppState>();
+    final stream = app.syncSnapshot;
     // The tap latch is otherwise cleared only by its 20s grace timer — if
     // real progress lands before that timer fires, clear it here too so the
     // UI does not bounce back to "Connecting" once syncing/deriving goes
@@ -1361,10 +1363,20 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
     );
 
     if (syncing) {
+      final records = stream['records_seen'] as int? ?? 0;
+      final batches = stream['batches_acked'] as int? ?? 0;
+      final newest = app.lastRecordAt;
+      final newestLabel = newest == null
+          ? 'not available yet'
+          : '${newest.toLocal().hour.toString().padLeft(2, '0')}:'
+              '${newest.toLocal().minute.toString().padLeft(2, '0')}';
       return StatusCard(
         l?.homeSyncingTitle ?? 'Syncing with your band',
-        l?.homeSyncingBody ?? 'Pulling data now — this can take a few minutes '
-            'on a full backlog.',
+        records > 0
+            ? 'WHOOP receipt: $records records received · $batches batches '
+                'safely saved. Newest band sample: $newestLabel.'
+            : 'The Bluetooth link is open; waiting for WHOOP to send its first '
+                'history record.',
         fix: 'View live sync stream',
         onFix: () => go(c, const SyncDetailsScreen()),
         leading: spinner,
