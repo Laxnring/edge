@@ -13,6 +13,7 @@
 // nothing above this file references HTTP, JWT, or a backend URL anymore.
 
 import '../compute/manual_session.dart' show SessionSpan;
+import '../fitness/optical_signal_trend.dart';
 import '../gps/route_models.dart';
 import 'journal_fields.dart';
 
@@ -49,6 +50,10 @@ abstract class LocalRepository {
   // ── today / summaries ────────────────────────────────────────────────────────
   Future<Map<String, dynamic>> getToday() =>
       throw UnimplementedError('re-layer: getToday');
+
+  /// The direction of WHOOP 4's *raw optical signal*, never a SpO₂ percentage.
+  Future<OpticalSignalTrend> getOpticalSignalTrend() =>
+      throw UnimplementedError('re-layer: getOpticalSignalTrend');
 
   /// Sleep ONSET/OFFSET for the most recent [days] days, newest first.
   ///

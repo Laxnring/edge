@@ -34,6 +34,7 @@ import 'local_repository.dart';
 import 'series_codec.dart';
 import '../gps/route_models.dart';
 import '../fitness/temperature_calibration.dart';
+import '../fitness/optical_signal_trend.dart';
 import '../gps/route_math.dart' as rmath;
 
 class LocalRepositoryImpl extends LocalRepository {
@@ -52,6 +53,34 @@ class LocalRepositoryImpl extends LocalRepository {
   /// user on every call and the goal never moved off 8 000.
   final Future<Map<String, dynamic>> Function(Map<String, dynamic>)?
   saveProfileFields;
+
+  @override
+  Future<OpticalSignalTrend> getOpticalSignalTrend() async {
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final middle = now - const Duration(hours: 3).inSeconds;
+    final start = middle - const Duration(hours: 3).inSeconds;
+    final db = await LocalDb.instance;
+    final rows = await db.rawQuery(
+      'SELECT CASE WHEN rec_ts < ? THEN 0 ELSE 1 END AS window, '
+      'AVG((spo2_red_raw + spo2_ir_raw) / 2.0) AS mean, COUNT(*) AS count '
+      'FROM decoded_onehz '
+      'WHERE device_family = ? AND rec_ts >= ? AND rec_ts < ? '
+      'AND spo2_red_raw > 0 AND spo2_ir_raw > 0 '
+      'GROUP BY window',
+      [middle, 'gen4', start, now],
+    );
+    Map<String, dynamic>? earlier, recent;
+    for (final row in rows) {
+      if ((row['window'] as num?)?.toInt() == 0) earlier = row;
+      if ((row['window'] as num?)?.toInt() == 1) recent = row;
+    }
+    return OpticalSignalTrend.compare(
+      earlierMean: (earlier?['mean'] as num?)?.toDouble(),
+      earlierCount: (earlier?['count'] as num?)?.toInt() ?? 0,
+      recentMean: (recent?['mean'] as num?)?.toDouble(),
+      recentCount: (recent?['count'] as num?)?.toInt() ?? 0,
+    );
+  }
 
   // ── helpers ────────────────────────────────────────────────────────────────
 

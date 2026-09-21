@@ -35,6 +35,7 @@ import 'package:provider/provider.dart';
 import '../../data/db.dart' show DbRebuild;
 import '../../data/journal_fields.dart' show formatMinuteOfDay;
 import '../../data/local_repository.dart';
+import '../../fitness/optical_signal_trend.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/metric.dart';
 import '../../state/app_state.dart';
@@ -1060,6 +1061,7 @@ class HomeData {
   final List<Map<String, dynamic>> drivers;
   final Metric sleepMin, rhr, steps, calories, caloriesTotal;
   final Metric stress;
+  final OpticalSignalTrend opticalTrend;
 
   /// The day's 0–21 strain, read from the same `getToday` bundle the Workout
   /// tab reads. Nothing on this screen computes it.
@@ -1109,6 +1111,7 @@ class HomeData {
     this.calories = Metric.empty,
     this.caloriesTotal = Metric.empty,
     this.stress = Metric.empty,
+    this.opticalTrend = OpticalSignalTrend.unavailable,
     this.strain = Metric.empty,
     this.stepGoal = kDefaultStepGoal,
     this.sleepNeedMin = Metric.empty,
@@ -1135,6 +1138,7 @@ class HomeData {
         calories: calories,
         caloriesTotal: caloriesTotal,
         stress: stress,
+        opticalTrend: opticalTrend,
         strain: strain,
         stepGoal: stepGoal,
         sleepNeedMin: sleepNeedMin,
@@ -1151,6 +1155,7 @@ class HomeData {
     final today = await repo.getToday();
     final cd = await repo.getInsights();
     final profile = await repo.getProfile();
+    final opticalTrend = await repo.getOpticalSignalTrend();
 
     final daily = today['daily'];
     final sleep = today['sleep'];
@@ -1197,6 +1202,7 @@ class HomeData {
       calories: metricOf(d('calories')),
       caloriesTotal: metricOf(d('calories_total')),
       stress: metricOf(today['stress']),
+      opticalTrend: opticalTrend,
       stepGoal: (today['step_goal'] as num?)?.toInt() ?? kDefaultStepGoal,
       // sleep_coach.need is the COMPUTED need. `sleep.need_min` is a hardcoded
       // 480 and must never be shown as "your sleep need".
@@ -1795,6 +1801,17 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
         why: 'Needs a clean resting beat-to-beat window.',
       ),
     );
+    // The requested arrow is deliberately named for what the WHOOP 4 bytes can
+    // support. It is never a blood-oxygen percentage or clinical direction.
+    cards.add(SignalCard(
+      LucideIcons.activity,
+      C.blue,
+      'SpO₂ trend',
+      d.opticalTrend.arrow,
+      sub: d.opticalTrend.direction == OpticalSignalDirection.unavailable
+          ? 'Experimental · waiting for WHOOP optical data'
+          : 'Experimental optical signal · not a SpO₂ %',
+    ));
     // Steps keeps its tile whether or not a counter reported. Zero steps is a
     // real reading — an unmoved counter — and it renders as 0, not as absence.
     // When nothing counted at all the tile stays and says so in two words,
