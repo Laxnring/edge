@@ -54,6 +54,9 @@ if ($defaultRun) {
 
 Push-Location $preview
 try {
+  # `flutter-local.ps1` honours this when it runs inside the temporary copy.
+  # Keep dependencies stable between launches without copying the entire cache.
+  $env:OPENSTRAP_PUB_CACHE = Join-Path $source '.pub-cache'
   if ($defaultRun) {
     & powershell -ExecutionPolicy Bypass -File .\flutter-local.ps1 pub get
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

@@ -7,7 +7,13 @@ $workspace = Split-Path -Parent $MyInvocation.MyCommand.Path
 $env:FLUTTER_ROOT = $sdk
 $env:GIT_CONFIG_GLOBAL = Join-Path $workspace '.gitconfig-flutter'
 $env:APPDATA = Join-Path $workspace '.flutter-appdata'
-$env:PUB_CACHE = Join-Path $workspace '.pub-cache'
+$env:PUB_CACHE = if ($env:OPENSTRAP_PUB_CACHE) {
+  # The web preview is compiled from a short-lived copy. Reusing the checked
+  # out project's cache avoids downloading every Flutter package on each run.
+  $env:OPENSTRAP_PUB_CACHE
+} else {
+  Join-Path $workspace '.pub-cache'
+}
 New-Item -ItemType Directory -Force -Path $env:APPDATA, $env:PUB_CACHE | Out-Null
 $dart = Join-Path $sdk 'bin\cache\dart-sdk\bin\dart.exe'
 $packages = Join-Path $sdk 'packages\flutter_tools\.dart_tool\package_config.json'
