@@ -3882,7 +3882,10 @@ class BleEngine {
         ? const Duration(seconds: 35)
         : _notifySetupTimeout;
     _log('Enabling WHOOP $role notifications (up to ${timeout.inSeconds}s).');
-    await c.setNotifyValue(true).timeout(timeout);
+    // flutter_blue_plus has its own 15-second default while it waits for the
+    // CCCD response. Pass the same deadline into it; wrapping the Future alone
+    // cannot extend an error the plugin has already raised internally.
+    await c.setNotifyValue(true, timeout: timeout.inSeconds).timeout(timeout);
     _log('WHOOP $role notifications enabled.');
     session.subs.add(
       c.onValueReceived.listen((chunk) {
