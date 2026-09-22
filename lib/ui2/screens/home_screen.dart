@@ -1348,6 +1348,13 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
     final deriveQueued = deriveQueuedOf(c);
     final app = c.watch<AppState>();
     final stream = app.syncSnapshot;
+    // WHOOP history arrives in short bursts. `syncingNow` deliberately only
+    // stays true for six seconds after a durable batch, so it answers "are
+    // records landing this exact moment?". It must not be used on its own to
+    // decide that an active history transfer has finished: the normal quiet
+    // gaps between bursts otherwise make Today alternate between Downloading
+    // and "waiting for the sync to settle".
+    final transferActive = stream['active'] == true;
     // The tap latch is otherwise cleared only by its 20s grace timer — if
     // real progress lands before that timer fires, clear it here too so the
     // UI does not bounce back to "Connecting" once syncing/deriving goes
@@ -1362,7 +1369,7 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
       child: CircularProgressIndicator(strokeWidth: 2, color: P.of(c).ink3),
     );
 
-    if (syncing) {
+    if (syncing || transferActive) {
       final records = stream['records_seen'] as int? ?? 0;
       final batches = stream['batches_acked'] as int? ?? 0;
       final newest = app.lastRecordAt;
@@ -1371,10 +1378,15 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
           : '${newest.toLocal().hour.toString().padLeft(2, '0')}:'
               '${newest.toLocal().minute.toString().padLeft(2, '0')}';
       return StatusCard(
-        l?.homeSyncingTitle ?? 'Syncing with your band',
+        syncing
+            ? l?.homeSyncingTitle ?? 'Syncing with your band'
+            : 'Downloading history from your band',
         records > 0
-            ? 'WHOOP receipt: $records records received · $batches batches '
-                'safely saved. Newest band sample: $newestLabel.'
+            ? syncing
+                ? 'WHOOP receipt: $records records received · $batches batches '
+                    'safely saved. Newest band sample: $newestLabel.'
+                : 'WHOOP is briefly between batches. $records records and '
+                    '$batches batches are already safely saved.'
             : 'The Bluetooth link is open; waiting for WHOOP to send its first '
                 'history record.',
         fix: 'View live sync stream',
@@ -1394,9 +1406,9 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
     }
     if (deriveQueued) {
       return StatusCard(
-        'Waiting for the sync to settle',
-        'Last night\'s summary is queued. Keep this tab open while the strap '
-            'finishes sending its history.',
+        'Preparing your updated summary',
+        'The download has finished. PicoWhoop will calculate sleep, recovery '
+            'and strain from the recordings already saved on this device.',
         fix: 'View live sync stream',
         onFix: () => go(c, const SyncDetailsScreen()),
         leading: spinner,

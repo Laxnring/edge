@@ -142,7 +142,10 @@ class SyncDetailsScreen extends StatelessWidget {
     final app = context.watch<AppState>();
     final device = app.device;
     final status = app.engine.bandStatus;
-    final receiving = app.syncingNow;
+    // The band sends history in bursts. Keep the transfer marked active
+    // between bursts, instead of presenting every normal six-second pause as
+    // an idle connection waiting to calculate.
+    final receiving = app.syncingNow || app.syncSnapshot['active'] == true;
     final deriving = app.deriving;
     final pending = app.derivePending;
     final stream = app.syncSnapshot;
