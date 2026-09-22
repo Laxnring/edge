@@ -1575,7 +1575,7 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(
-                'NOOP',
+                'PicoWhoop',
                 style: F.over.copyWith(
                   color: p.on(C.domHome),
                   fontWeight: FontWeight.w800,

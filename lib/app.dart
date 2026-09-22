@@ -129,7 +129,7 @@ class _OpenStrapAppState extends State<OpenStrapApp> with WidgetsBindingObserver
     final theme = context.watch<ThemeController>();
     final locale = context.watch<LocaleController>();
     return MaterialApp(
-      title: 'NOOP',
+      title: 'PicoWhoop',
       debugShowCheckedModeBanner: false,
       // Edge is a single-screen app shell, not a browser-routed website.  On
       // Flutter Web an old/debug URL such as `#ProfileHome` becomes the

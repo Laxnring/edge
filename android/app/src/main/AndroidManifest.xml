@@ -113,7 +113,7 @@
         android:required="false" />
 
     <application
-        android:label="Edge"
+        android:label="PicoWhoop"
         android:name=".EdgeApplication"
         android:icon="@mipmap/launcher_icon"
         android:allowBackup="false"
@@ -241,7 +241,7 @@
              "Notification access" in system settings. Class lives in the plugin. -->
         <service
             android:name="notification.listener.service.NotificationListener"
-            android:label="OpenStrap notification relay"
+            android:label="PicoWhoop notification relay"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
             android:exported="true">
             <intent-filter>
