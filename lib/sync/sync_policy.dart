@@ -34,13 +34,18 @@ const int kKeepAliveIntervalSeconds =
 /// expiry — so it is a stall findable in a log, not a silent one.
 /// HOW TO CHECK: two `[SYNC] idle watchdog` lines with no durable commit
 /// between them, repeating across reconnects.
+// WHOOP 4 sends a healthy historical burst continuously. Twenty seconds gives
+// a sluggish Chrome/Web Bluetooth callback room to arrive, while avoiding the
+// old minute-long "nothing is happening" pause after a genuinely stalled task.
+// This never acknowledges or deletes an unfinished chunk: the abort leaves it
+// on the band, so the next task re-delivers it from the same checkpoint.
 // ponytail: one timeout for every source, sized for WHOOP's continuous drain.
 // Upgrade path = the adapter declares its own maximum healthy inter-frame pause
 // AND whether an abandoned chunk is re-delivered at all. The cross-session
 // escalation to hang the "this keeps happening" report on already exists
 // ([NoDurableProgressEscalation]); the discard path just does not feed it.
 // Until both exist, do not point a slower source at this drain.
-const int kBackfillIdleTimeoutSeconds = 60; // strap went silent mid-offload
+const int kBackfillIdleTimeoutSeconds = 20; // strap went silent mid-offload
 
 /// Silence past which an ACTIVE session tears itself down (`_keepAliveFire`).
 ///
