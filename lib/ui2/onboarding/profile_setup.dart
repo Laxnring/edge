@@ -6,10 +6,8 @@
 // filled. A promise the form contradicts is worse than no promise, because it
 // teaches the user that the honesty copy elsewhere is decoration too.
 //
-// So: every field is optional except sex, which is the one input with no
-// honest default — the analytics coefficient tables key on it and the
-// midpoint of two sexes is a third person. Everything else that is blank
-// simply withholds the metrics that need it.
+// So: every field is optional. A blank value simply withholds the derived
+// metrics that need it; it never blocks access to the strap's actual data.
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -188,13 +186,7 @@ class _ProfileSetupViewState extends State<ProfileSetupView> {
                     'Without it: calories and training load.'),
             const SizedBox(height: S.x5),
             BigButton(l?.actionContinue ?? 'Continue',
-                color: C.green, onTap: _sex == null ? null : _continue),
-            if (_sex == null) ...[
-              const SizedBox(height: S.x2),
-              Text(l?.profileSetupPickOneToContinue ??
-                      'Pick one option above to continue.',
-                  style: F.cap.copyWith(color: p.ink3)),
-            ],
+                color: C.green, onTap: _continue),
           ],
         ),
       ),

@@ -179,9 +179,9 @@ class _OpenStrapAppState extends State<OpenStrapApp> with WidgetsBindingObserver
 /// the ones users hit exactly once and never forgive, so this is testable
 /// without a band, a database or a widget tree.
 ///
-/// [AppRoute.pairing] short-circuits before AppState ever looks at the
-/// profile, so a skipped pairing falls through to profile setup rather than
-/// straight to the shell — we still want the four numbers.
+/// Profile is editable later in Settings; it is not an admission ticket to
+/// someone's own health data. A first launch, a skipped pairing, and an
+/// incomplete profile must all reach Today without another questionnaire.
 ///
 /// [onboarded] is the difference between "has never had a band" and "has no
 /// band right now". `AppState.route` only knows the second: a user who forgets
@@ -198,7 +198,9 @@ AppRoute resolveRoute(AppRoute route,
     return AppRoute.shell;
   }
   if (r == AppRoute.pairing && pairingSkipped) r = AppRoute.profile;
-  if (r == AppRoute.profile && profileSeen) return AppRoute.shell;
+  // Personal details improve a few derived estimates, but the strap is still
+  // useful without them. Do not put this optional form in front of the app.
+  if (r == AppRoute.profile) return AppRoute.shell;
   return r;
 }
 
@@ -250,7 +252,10 @@ class _Gate extends StatelessWidget {
           AppRoute.pairing => DevicePickerScreen(
               onSkip: () => OnboardingBypass.mark(OnboardingBypass.kPairing)),
           AppRoute.profile => ProfileSetupScreen(
-              onDone: () => OnboardingBypass.mark(OnboardingBypass.kProfile)),
+              onDone: () {
+                _markOnboarded();
+                OnboardingBypass.mark(OnboardingBypass.kProfile);
+              }),
           AppRoute.shell => const _Shell(),
         };
         // Cold-start splash: covers the whole loading phase and cross-fades out

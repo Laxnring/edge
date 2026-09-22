@@ -49,20 +49,19 @@ void _tallView(WidgetTester tester) {
 
 void main() {
   group('the onboarding gate', () {
-    test('walks welcome → pairing → profile → shell when nothing is skipped',
-        () {
+    test('walks welcome → pairing → shell when nothing is skipped', () {
       for (final r in AppRoute.values) {
-        expect(resolveRoute(r, pairingSkipped: false, profileSeen: false), r);
+        expect(resolveRoute(r, pairingSkipped: false, profileSeen: false),
+            r == AppRoute.profile ? AppRoute.shell : r);
       }
     });
 
-    test('a skipped pairing still asks for the profile, then opens the app',
-        () {
+    test('a skipped pairing opens the app without a profile questionnaire', () {
       expect(
         resolveRoute(AppRoute.pairing,
             pairingSkipped: true, profileSeen: false),
-        AppRoute.profile,
-        reason: 'the four profile numbers are still worth asking for',
+        AppRoute.shell,
+        reason: 'personal calibration belongs in Settings, never at the gate',
       );
       expect(
         resolveRoute(AppRoute.pairing, pairingSkipped: true, profileSeen: true),
@@ -70,10 +69,7 @@ void main() {
       );
     });
 
-    test('a deliberately partial profile is not bounced back forever', () {
-      // AppState.route keeps returning `profile` while any of age/height/
-      // weight/sex is blank. Honouring that literally is the bug: the form
-      // says the fields are optional.
+    test('an incomplete profile is never a gate', () {
       expect(
         resolveRoute(AppRoute.profile,
             pairingSkipped: false, profileSeen: true),
@@ -279,7 +275,7 @@ void main() {
   });
 
   group('profile setup keeps its promise', () {
-    testWidgets('continue is gated on sex alone, and blanks stay blank',
+    testWidgets('continue accepts a completely blank optional profile',
         (tester) async {
       _tallView(tester);
       Map<String, dynamic>? saved;
@@ -288,19 +284,12 @@ void main() {
         home: ProfileSetupView(onSave: (f) async => saved = f),
       ));
 
-      // Nothing chosen: the one required field is missing.
+      // No choice is required to save (or to access the dashboard).
       await tester.tap(find.text('Continue'));
       await tester.pump();
-      expect(saved, isNull);
-
-      await tester.tap(find.text('Female'));
-      await tester.pump();
-      await tester.tap(find.text('Continue'));
-      await tester.pump();
-
       expect(saved, isNotNull);
-      expect(saved!['sex'], 'f');
-      // The three optional fields were left blank, so they are ABSENT — not
+      expect(saved!.containsKey('sex'), isFalse);
+      // All fields were left blank, so they are ABSENT — not
       // zero, and not a default body.
       expect(saved!.containsKey('age'), isFalse);
       expect(saved!.containsKey('height_cm'), isFalse);
